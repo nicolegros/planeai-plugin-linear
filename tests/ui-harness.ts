@@ -4,7 +4,7 @@ import { JSDOM } from "jsdom";
 export function installDom(): JSDOM {
   const dom = new JSDOM("<!doctype html><html><body></body></html>", { url: "https://plugin.test/", pretendToBeVisual: true });
   const browser = dom.window as unknown as Record<string, unknown>;
-  for (const name of ["window", "document", "Element", "HTMLElement", "HTMLButtonElement", "MutationObserver", "KeyboardEvent", "requestAnimationFrame"]) {
+  for (const name of ["window", "document", "navigator", "Element", "HTMLElement", "HTMLButtonElement", "HTMLInputElement", "HTMLSelectElement", "HTMLTextAreaElement", "Option", "Event", "FocusEvent", "MutationObserver", "KeyboardEvent", "requestAnimationFrame"]) {
     Object.defineProperty(globalThis, name, { value: name === "window" ? dom.window : browser[name], configurable: true, writable: true });
   }
   return dom;
@@ -24,4 +24,11 @@ export const settle = () => new Promise((done) => setTimeout(done, 0));
 
 export function press(key: string, target: Element = document.activeElement ?? document.body, modifiers: KeyboardEventInit = {}) {
   target.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true, ...modifiers }));
+}
+
+/** Types a value into a field and commits it, as leaving the field does. */
+export function change(element: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement, value: string | boolean) {
+  if (typeof value === "boolean") (element as HTMLInputElement).checked = value;
+  else element.value = value;
+  element.dispatchEvent(new Event("change", { bubbles: true }));
 }
