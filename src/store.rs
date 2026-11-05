@@ -653,7 +653,9 @@ pub mod tests {
             task_key: TaskKey("ENG-1".into()),
             title: "Gone".into(),
         };
-        store.replace_departure_queue(&[departed.clone()]).unwrap();
+        store
+            .replace_departure_queue(std::slice::from_ref(&departed))
+            .unwrap();
         assert_eq!(store.departure_queue().unwrap(), vec![departed.clone()]);
         store.dequeue_departure(&departed.issue_id).unwrap();
         assert_eq!(store.departure_queue().unwrap(), vec![]);

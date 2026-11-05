@@ -104,11 +104,11 @@ pub enum Priority {
 impl Priority {
     pub fn from_linear(value: f64) -> Option<Self> {
         match value {
-            v if v == 0.0 => Some(Self::None),
-            v if v == 1.0 => Some(Self::Urgent),
-            v if v == 2.0 => Some(Self::High),
-            v if v == 3.0 => Some(Self::Medium),
-            v if v == 4.0 => Some(Self::Low),
+            0.0 => Some(Self::None),
+            1.0 => Some(Self::Urgent),
+            2.0 => Some(Self::High),
+            3.0 => Some(Self::Medium),
+            4.0 => Some(Self::Low),
             _ => None,
         }
     }
