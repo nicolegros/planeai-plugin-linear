@@ -1,0 +1,50 @@
+PLUGIN := planeai-plugin-linear
+DIST := dist/$(PLUGIN)
+UNAME_S := $(shell uname -s)
+UNAME_M := $(shell uname -m)
+
+ifeq ($(UNAME_S),Darwin)
+  ifeq ($(UNAME_M),arm64)
+    PLATFORM := macos-arm64
+  else
+    PLATFORM := macos-x64
+  endif
+else ifeq ($(UNAME_S),Linux)
+  ifeq ($(UNAME_M),aarch64)
+    PLATFORM := linux-arm64
+  else
+    PLATFORM := linux-x64
+  endif
+else
+  PLATFORM := unsupported
+endif
+
+.PHONY: build-ui test package verify-package clean
+
+UI_ENTRYPOINTS := preferences sidebar departures assign
+
+build-ui:
+	pnpm exec tsc
+	pnpm exec esbuild $(UI_ENTRYPOINTS:%=ui/%.ts) --bundle --format=esm --target=es2022 --log-level=warning --outdir=build/package/ui
+
+test: build-ui
+	cargo test
+	node --test build/tests/*.test.js
+	node --test tests/*.test.mjs
+
+package: build-ui
+	@case "$(PLATFORM)" in unsupported) echo "Unsupported local packaging platform; use the release workflow for Windows" >&2; exit 2;; esac
+	cargo build --release
+	rm -rf $(DIST)
+	mkdir -p $(DIST)/bin/$(PLATFORM) $(DIST)/ui
+	cp planeai-plugin.json $(DIST)/
+	cp $(UI_ENTRYPOINTS:%=build/package/ui/%.js) $(DIST)/ui/
+	cp target/release/$(PLUGIN) $(DIST)/bin/$(PLATFORM)/$(PLUGIN)
+	chmod +x $(DIST)/bin/$(PLATFORM)/$(PLUGIN)
+	@echo "Staged $(DIST) for $(PLATFORM)"
+
+verify-package: package
+	node scripts/verify-package-handshake.mjs $(DIST) $(PLATFORM)
+
+clean:
+	rm -rf build dist

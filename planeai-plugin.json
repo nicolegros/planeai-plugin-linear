@@ -1,0 +1,60 @@
+{
+  "schema": "planeai.plugin.v1",
+  "id": "linear",
+  "name": "Linear",
+  "version": "0.0.0",
+  "host_api_version": "planeai.plugin-host.v7",
+  "source_kind": "local",
+  "backend_entrypoints": {
+    "macos-arm64": "bin/macos-arm64/planeai-plugin-linear",
+    "macos-x64": "bin/macos-x64/planeai-plugin-linear",
+    "linux-x64": "bin/linux-x64/planeai-plugin-linear",
+    "windows-x64": "bin/windows-x64/planeai-plugin-linear.exe"
+  },
+  "capabilities": [
+    "settings",
+    "projects.read",
+    "tasks.read",
+    "tasks.create",
+    "tasks.sync",
+    "task-events"
+  ],
+  "background_service": {
+    "method": "linear.syncNow",
+    "interval_setting": "sync_interval_ms",
+    "default_interval_ms": 60000
+  },
+  "ui_contributions": [
+    {
+      "id": "preferences",
+      "label": "Linear",
+      "placement": "preferences",
+      "entrypoint": "ui/preferences.js"
+    },
+    {
+      "id": "section",
+      "label": "Linear",
+      "placement": "sidebar.section",
+      "entrypoint": "ui/sidebar.js",
+      "order": 100
+    },
+    {
+      "id": "departed-interaction",
+      "label": "Departed Linear issues",
+      "placement": "interaction",
+      "entrypoint": "ui/departures.js"
+    },
+    {
+      "id": "dashboard",
+      "label": "Linear",
+      "placement": "main-pane",
+      "entrypoint": "ui/preferences.js"
+    },
+    {
+      "id": "assign",
+      "label": "Assign Linear issue",
+      "placement": "dialog",
+      "entrypoint": "ui/assign.js"
+    }
+  ]
+}
