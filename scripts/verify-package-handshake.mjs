@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
 
@@ -35,7 +36,17 @@ const request = {
   },
 };
 
-const child = spawn(binaryPath, [], { stdio: ["pipe", "pipe", "pipe"] });
+// PlaneAI always gives the sidecar private data and secrets directories.
+const state = fs.mkdtempSync(path.join(os.tmpdir(), "planeai-plugin-linear-handshake-"));
+process.on("exit", () => fs.rmSync(state, { force: true, recursive: true }));
+const child = spawn(binaryPath, [], {
+  stdio: ["pipe", "pipe", "pipe"],
+  env: {
+    ...process.env,
+    PLANEAI_PLUGIN_DATA_DIR: path.join(state, "data"),
+    PLANEAI_PLUGIN_SECRETS_DIR: path.join(state, "secrets"),
+  },
+});
 let stdout = "";
 let stderr = "";
 let settled = false;

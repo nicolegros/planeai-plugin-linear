@@ -24,7 +24,8 @@ test("release packages stage every bundled manifest UI entrypoint", () => {
   const manifest = JSON.parse(fs.readFileSync(new URL("../planeai-plugin.json", import.meta.url), "utf8"));
   const makefile = fs.readFileSync(new URL("../Makefile", import.meta.url), "utf8");
   const bundled = makefile.match(/^UI_ENTRYPOINTS := (.+)$/m)?.[1].split(/\s+/).sort();
-  const entrypoints = manifest.ui_contributions.map((contribution) => contribution.entrypoint.match(/^ui\/(.+)\.js$/)?.[1]).sort();
+  // The dashboard reuses the preferences bundle, so compare distinct bundles.
+  const entrypoints = [...new Set(manifest.ui_contributions.map((contribution) => contribution.entrypoint.match(/^ui\/(.+)\.js$/)?.[1]))].sort();
 
   assert.deepEqual(bundled, entrypoints);
   for (const name of entrypoints) {
