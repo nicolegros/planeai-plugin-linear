@@ -1,4 +1,5 @@
 mod auth;
+mod connect;
 mod host;
 mod linear_api;
 mod model;
