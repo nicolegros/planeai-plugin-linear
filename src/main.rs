@@ -15,18 +15,21 @@ mod testing;
 mod writeback;
 
 use plugin::LinearPlugin;
+use std::time::Duration;
 use tokio::io::BufReader;
 
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     eprintln!("linear plugin starting");
     let mut plugin = LinearPlugin::from_environment().map_err(std::io::Error::other)?;
-    rpc::serve(
+    let runtime = tokio::runtime::Runtime::new()?;
+    let served = runtime.block_on(rpc::serve(
         BufReader::new(tokio::io::stdin()),
         tokio::io::stdout(),
         &mut plugin,
-    )
-    .await?;
+    ));
+    // Tokio reads stdin on a blocking thread that PlaneAI's open pipe never releases.
+    runtime.shutdown_timeout(Duration::from_millis(200));
     eprintln!("linear plugin stopping");
+    served?;
     Ok(())
 }
