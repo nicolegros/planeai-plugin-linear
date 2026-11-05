@@ -236,10 +236,6 @@ impl SettingsTransition {
         }
         transition
     }
-
-    pub fn is_empty(&self) -> bool {
-        self.renamed.is_empty() && self.removed.is_empty()
-    }
 }
 
 #[cfg(test)]

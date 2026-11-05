@@ -1,7 +1,7 @@
 use crate::model::{IssueId, LinearIssue, TaskKey, TaskStatus};
 use crate::settings::{Settings, SettingsTransition, SourceName};
 use chrono::Utc;
-use rusqlite::types::{FromSql, FromSqlError, FromSqlResult, ToSql, ToSqlOutput, ValueRef};
+use rusqlite::types::{FromSql, FromSqlError, FromSqlResult, ValueRef};
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::Serialize;
 use std::path::Path;
@@ -11,32 +11,6 @@ use std::path::Path;
 pub struct StoreError(#[from] rusqlite::Error);
 
 pub type StoreResult<T> = Result<T, StoreError>;
-
-/// Whether an issue (or one source's view of it) is still returned by Linear.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Membership {
-    Synced,
-    Departed,
-}
-
-impl ToSql for Membership {
-    fn to_sql(&self) -> rusqlite::Result<ToSqlOutput<'_>> {
-        Ok(ToSqlOutput::from(match self {
-            Self::Synced => "synced",
-            Self::Departed => "departed",
-        }))
-    }
-}
-
-impl FromSql for Membership {
-    fn column_result(value: ValueRef<'_>) -> FromSqlResult<Self> {
-        match value.as_str()? {
-            "synced" => Ok(Self::Synced),
-            "departed" => Ok(Self::Departed),
-            _ => Err(FromSqlError::InvalidType),
-        }
-    }
-}
 
 struct StoredStatus(TaskStatus);
 
