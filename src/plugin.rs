@@ -344,3 +344,312 @@ impl Handler for LinearPlugin {
         self.run(call, Host(host)).await.map_err(RpcError::failed)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::linear_api::tests::raw_issue;
+    use crate::testing::{filter, filter_source, local, FakeHost, Fixture};
+    use serde_json::{json, Value};
+
+    #[tokio::test]
+    async fn handshake_subscribes_to_task_lifecycle_on_host_api_v7_only() {
+        local(async {
+            let fixture = Fixture::new().await;
+            let mut plugin = fixture.start(FakeHost::default());
+            assert_eq!(
+                plugin
+                    .call("plugin.handshake", json!({ "host_api_version": "planeai.plugin-host.v7", "host_capabilities": [] }))
+                    .await
+                    .unwrap(),
+                json!({
+                    "plugin_id": "linear", "plugin_name": "Linear", "plugin_version": "0.0.0",
+                    "host_api_version": "planeai.plugin-host.v7",
+                    "lifecycle_event_subscriptions": ["task.lifecycle"]
+                })
+            );
+            assert_eq!(
+                plugin
+                    .call("plugin.handshake", json!({ "host_api_version": "planeai.plugin-host.v6" }))
+                    .await,
+                Err("unsupported plugin host API version".into())
+            );
+            assert_eq!(
+                plugin.call("linear.unknown", Value::Null).await,
+                Err("method not found".into())
+            );
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn status_reports_the_connected_workspace_without_secrets() {
+        local(async {
+            let fixture = Fixture::new().await;
+            let mut plugin = fixture.start(FakeHost::default());
+            let disconnected = plugin.call("linear.status", Value::Null).await.unwrap();
+            assert_eq!(disconnected["connected"], false);
+            assert_eq!(disconnected["organization"], Value::Null);
+            assert_eq!(disconnected["oauth_available"], true);
+
+            fixture.connect("org-1");
+            let status = plugin.call("linear.status", Value::Null).await.unwrap();
+            assert_eq!(
+                status,
+                json!({
+                    "plugin_id": "linear", "plugin_name": "Linear", "plugin_version": "0.0.0",
+                    "host_api_version": "planeai.plugin-host.v7", "runtime_state": "running",
+                    "connected": true, "authorizing": false, "oauth_available": true, "auth_kind": "api_key",
+                    "organization": { "id": "org-1", "name": "Acme", "url_key": "acme" },
+                    "last_error": null, "last_writeback": null
+                })
+            );
+            assert!(!status.to_string().contains("lin_api_key"));
+            assert_eq!(
+                plugin.call("linear.disconnect", Value::Null).await.unwrap(),
+                json!({ "connected": false })
+            );
+            assert_eq!(plugin.call("linear.status", Value::Null).await.unwrap()["connected"], false);
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn settings_get_returns_the_parsed_document_with_defaults() {
+        local(async {
+            let fixture = Fixture::new().await;
+            let mut plugin = fixture.start(FakeHost::default());
+            assert_eq!(
+                plugin
+                    .call("linear.settings.get", Value::Null)
+                    .await
+                    .unwrap(),
+                json!({ "sync_interval_ms": 60000, "sources": {} })
+            );
+            plugin.host.settings = json!({ "sources": [] });
+            assert!(plugin
+                .call("linear.settings.get", Value::Null)
+                .await
+                .unwrap_err()
+                .starts_with("invalid Linear plugin settings"));
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn settings_update_validates_persists_and_departs_removed_sources_quietly() {
+        local(async {
+            let fixture = Fixture::new().await;
+            fixture.connect("org-1");
+            fixture
+                .filter_returns(filter("ENG"), vec![raw_issue("uuid-1", "ENG-1", ("Todo", "unstarted"), 0.0)])
+                .await;
+            let mut plugin = fixture.start(FakeHost::default());
+            let one = json!({ "sync_interval_ms": 30000, "sources": { "eng": filter_source("ENG") } });
+            assert_eq!(
+                plugin.call("linear.settings.update", one.clone()).await.unwrap(),
+                json!({ "sync_interval_ms": 30000, "sources": { "eng": {
+                    "query": { "kind": "filter", "filter": filter("ENG") }, "status_map": {}, "writeback": null
+                } } })
+            );
+            assert_eq!(plugin.host.settings["sync_interval_ms"], 30000);
+            plugin.call("linear.syncNow", Value::Null).await.unwrap();
+
+            assert_eq!(
+                plugin
+                    .call("linear.settings.update", json!({ "sources": { "eng": { "query": { "kind": "filter", "filter": {} } } } }))
+                    .await,
+                Err("Linear source \"eng\": requires a non-empty IssueFilter object".into())
+            );
+            assert_eq!(plugin.host.settings["sync_interval_ms"], 30000, "a rejected update is not persisted");
+
+            plugin.call("linear.settings.update", json!({ "sources": {} })).await.unwrap();
+            assert_eq!(
+                plugin.call("linear.sidebar.items", Value::Null).await.unwrap(),
+                json!({ "items": [] })
+            );
+            assert_eq!(fixture.store().departure_candidates().unwrap(), vec![]);
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn settings_update_restores_the_previous_document_when_memberships_cannot_move() {
+        local(async {
+            let fixture = Fixture::new().await;
+            std::fs::create_dir(fixture.data.path().join("linear.sqlite")).unwrap();
+            let previous = json!({ "sources": { "eng": filter_source("ENG") } });
+            let mut plugin = fixture.start(FakeHost::with_settings(previous.clone()));
+            let error = plugin
+                .call("linear.settings.update", json!({ "sources": {} }))
+                .await
+                .unwrap_err();
+            assert!(error.starts_with("Linear plugin database"), "{error}");
+            assert_eq!(plugin.host.settings, previous);
+            assert_eq!(
+                plugin.host.methods(),
+                vec![
+                    "host.settings.get",
+                    "host.settings.replace",
+                    "host.settings.replace"
+                ]
+            );
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn assignment_selects_a_synced_issue_for_the_dialog() {
+        local(async {
+            let fixture = Fixture::new().await;
+            fixture.connect("org-1");
+            fixture
+                .filter_returns(
+                    filter("ENG"),
+                    vec![raw_issue("uuid-1", "ENG-1", ("Todo", "unstarted"), 0.0)],
+                )
+                .await;
+            let mut plugin = fixture.start(FakeHost::with_settings(
+                json!({ "sources": { "eng": filter_source("ENG") } }),
+            ));
+            assert_eq!(
+                plugin.call("linear.assignment.current", Value::Null).await,
+                Err("choose a Linear issue in the sidebar first".into())
+            );
+            plugin.call("linear.syncNow", Value::Null).await.unwrap();
+            assert_eq!(
+                plugin
+                    .call("linear.assignment.select", json!({ "issue_id": "missing" }))
+                    .await,
+                Err("this Linear issue is no longer available".into())
+            );
+            assert_eq!(
+                plugin
+                    .call("linear.assignment.select", json!({ "issue_id": "uuid-1" }))
+                    .await
+                    .unwrap(),
+                json!({ "selected": true })
+            );
+            assert_eq!(
+                plugin
+                    .call("linear.assignment.current", Value::Null)
+                    .await
+                    .unwrap(),
+                json!({
+                    "issue_id": "uuid-1", "identifier": "ENG-1", "task_key": "ENG-1",
+                    "title": "Title ENG-1", "description": "Description ENG-1"
+                })
+            );
+            assert!(plugin
+                .call("linear.assignment.select", json!({}))
+                .await
+                .unwrap_err()
+                .starts_with("invalid params"));
+        })
+        .await;
+    }
+
+    async fn departed_fixture() -> (Fixture, crate::testing::Harness) {
+        let fixture = Fixture::new().await;
+        fixture.connect("org-1");
+        fixture
+            .filter_returns(
+                filter("ENG"),
+                vec![raw_issue("uuid-1", "ENG-1", ("Todo", "unstarted"), 0.0)],
+            )
+            .await;
+        let mut plugin = fixture.start(FakeHost::with_settings(
+            json!({ "sources": { "eng": filter_source("ENG") } }),
+        ));
+        plugin.call("linear.syncNow", Value::Null).await.unwrap();
+        fixture.reset_linear().await;
+        fixture.filter_returns(filter("ENG"), vec![]).await;
+        assert_eq!(
+            plugin.call("linear.syncNow", Value::Null).await.unwrap()["departed"],
+            1
+        );
+        (fixture, plugin)
+    }
+
+    #[tokio::test]
+    async fn resolving_a_departure_marks_its_task_done_then_dequeues_it() {
+        local(async {
+            let (_fixture, mut plugin) = departed_fixture().await;
+            plugin
+                .host
+                .failures
+                .insert("host.task.update".into(), "database is locked".into());
+            assert_eq!(
+                plugin
+                    .call("linear.departures.resolve", json!({ "issue_id": "uuid-1" }))
+                    .await,
+                Err("failed to mark ENG-1 done: database is locked".into())
+            );
+            assert_eq!(
+                plugin
+                    .call("linear.departures.list", Value::Null)
+                    .await
+                    .unwrap()["items"][0]["identifier"],
+                "ENG-1"
+            );
+
+            plugin.host.failures.clear();
+            assert_eq!(
+                plugin
+                    .call("linear.departures.resolve", json!({ "issue_id": "uuid-1" }))
+                    .await
+                    .unwrap(),
+                json!({ "resolved": true })
+            );
+            assert_eq!(plugin.host.tasks["ENG-1"]["status"], "done");
+            assert_eq!(
+                plugin
+                    .call("linear.departures.list", Value::Null)
+                    .await
+                    .unwrap(),
+                json!({ "items": [] })
+            );
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn dismissing_a_departure_dequeues_it_without_touching_the_task() {
+        local(async {
+            let (_fixture, mut plugin) = departed_fixture().await;
+            assert_eq!(
+                plugin
+                    .call("linear.departures.dequeue", json!({ "issue_id": "uuid-1" }))
+                    .await
+                    .unwrap(),
+                json!({ "dequeued": true })
+            );
+            assert_eq!(plugin.host.tasks["ENG-1"]["status"], "todo");
+            assert_eq!(
+                plugin
+                    .call("linear.departures.list", Value::Null)
+                    .await
+                    .unwrap(),
+                json!({ "items": [] })
+            );
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn the_browser_opens_only_generated_authorization_urls() {
+        local(async {
+            let fixture = Fixture::new().await;
+            let mut plugin = fixture.start(FakeHost::default());
+            assert_eq!(
+                plugin
+                    .call(
+                        "linear.open_browser",
+                        json!({ "url": "https://example.com/" })
+                    )
+                    .await,
+                Err("the browser capability only opens Linear authorization URLs".into())
+            );
+        })
+        .await;
+    }
+}
