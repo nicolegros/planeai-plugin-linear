@@ -243,4 +243,167 @@ mod tests {
             ]
         );
     }
+
+    mod over_rpc {
+        use crate::linear_api::tests::raw_issue;
+        use crate::testing::{filter, local, FakeHost, Fixture, Harness};
+        use serde_json::{json, Value};
+        use wiremock::matchers::{body_partial_json, body_string_contains, method};
+        use wiremock::{Mock, ResponseTemplate};
+
+        async fn synced(fixture: &Fixture, sources: Value) -> Harness {
+            fixture.connect("org-1");
+            fixture
+                .filter_returns(
+                    filter("ENG"),
+                    vec![raw_issue("uuid-1", "ENG-1", ("Todo", "unstarted"), 0.0)],
+                )
+                .await;
+            let mut plugin = fixture.start(FakeHost::with_settings(json!({ "sources": sources })));
+            assert_eq!(
+                plugin.call("linear.syncNow", Value::Null).await.unwrap()["errors"],
+                0
+            );
+            plugin
+        }
+
+        async fn team_states(fixture: &Fixture) {
+            Mock::given(method("POST"))
+                .and(body_string_contains("IssueTeamStates"))
+                .and(body_partial_json(
+                    json!({ "variables": { "id": "uuid-1" } }),
+                ))
+                .respond_with(ResponseTemplate::new(200).set_body_json(
+                    json!({ "data": { "issue": { "team": { "states": { "nodes": [
+                    { "id": "state-todo", "name": "Todo" },
+                    { "id": "state-progress", "name": "In Progress" },
+                    { "id": "state-done", "name": "Done" }
+                ] } } } } }),
+                ))
+                .mount(&fixture.server)
+                .await;
+        }
+
+        async fn comments_succeed(fixture: &Fixture) {
+            Mock::given(method("POST"))
+                .and(body_string_contains("CommentOnIssue"))
+                .respond_with(
+                    ResponseTemplate::new(200)
+                        .set_body_json(json!({ "data": { "commentCreate": { "success": true } } })),
+                )
+                .mount(&fixture.server)
+                .await;
+        }
+
+        fn source(on_start: Option<&str>, on_complete: Option<&str>, comment: bool) -> Value {
+            json!({ "query": { "kind": "filter", "filter": filter("ENG") },
+                    "writeback": { "on_start": on_start, "on_complete": on_complete, "comment": comment } })
+        }
+
+        fn first_child() -> Value {
+            json!({ "batch": { "batch_id": "b1", "events": [{
+                "type": "child_assigned", "child_key": "PLA-2", "parent_key": "ENG-1", "is_first_child_assignment": true
+            }] } })
+        }
+
+        #[tokio::test]
+        async fn lifecycle_uses_the_first_active_source_and_isolates_a_failed_transition() {
+            local(async {
+                let fixture = Fixture::new().await;
+                let mut plugin = synced(
+                    &fixture,
+                    json!({
+                        "z-source": source(Some("In Progress"), None, false),
+                        "a-source": source(Some("Development"), None, true),
+                    }),
+                )
+                .await;
+                team_states(&fixture).await;
+                comments_succeed(&fixture).await;
+
+                let reply = plugin
+                    .call("plugin.taskLifecycle", first_child())
+                    .await
+                    .unwrap();
+                let outcome = &reply["outcomes"][0];
+                assert_eq!(reply["outcomes"].as_array().unwrap().len(), 1);
+                assert_eq!(
+                    (
+                        &outcome["source"],
+                        &outcome["action"],
+                        &outcome["ok"],
+                        &outcome["transition_ok"],
+                        &outcome["comment_ok"]
+                    ),
+                    (
+                        &json!("a-source"),
+                        &json!("start"),
+                        &json!(false),
+                        &json!(false),
+                        &json!(true)
+                    )
+                );
+                assert_eq!(outcome["identifier"], "ENG-1");
+                assert_eq!(
+                    outcome["error"],
+                    "Linear workflow state \"Development\" is not in the issue's team"
+                );
+                let status = plugin.call("linear.status", Value::Null).await.unwrap();
+                assert_eq!(status["last_writeback"]["source"], "a-source");
+            })
+            .await;
+        }
+
+        #[tokio::test]
+        async fn completing_a_task_moves_the_issue_to_the_named_state_and_comments() {
+            local(async {
+                let fixture = Fixture::new().await;
+                let mut plugin = synced(&fixture, json!({ "eng": source(None, Some("done"), true) })).await;
+                team_states(&fixture).await;
+                Mock::given(method("POST"))
+                    .and(body_string_contains("MoveIssue"))
+                    .and(body_partial_json(json!({ "variables": { "id": "uuid-1", "stateId": "state-done" } })))
+                    .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "data": { "issueUpdate": { "success": true } } })))
+                    .expect(1)
+                    .mount(&fixture.server)
+                    .await;
+                comments_succeed(&fixture).await;
+
+                let reply = plugin.call("plugin.taskLifecycle", json!({ "batch": { "batch_id": "b2", "events": [
+                    { "type": "child_assigned", "child_key": "PLA-3", "parent_key": "ENG-1", "is_first_child_assignment": false },
+                    { "type": "status_changed", "task_key": "ENG-1", "parent_key": null, "previous_status": "in_progress", "new_status": "done", "cause": "automatic_parent_completion" }
+                ] } })).await.unwrap();
+
+                let outcome = &reply["outcomes"][0];
+                assert_eq!(reply["outcomes"].as_array().unwrap().len(), 1);
+                assert_eq!(
+                    (&outcome["action"], &outcome["ok"], &outcome["transition_ok"], &outcome["comment_ok"], &outcome["error"]),
+                    (&json!("complete"), &json!(true), &json!(true), &json!(true), &Value::Null)
+                );
+                let comment = fixture.server.received_requests().await.unwrap().into_iter()
+                    .map(|request| serde_json::from_slice::<Value>(&request.body).unwrap())
+                    .find(|body| body["query"].as_str().unwrap().contains("CommentOnIssue"))
+                    .unwrap();
+                assert_eq!(comment["variables"]["issueId"], "uuid-1");
+                let text = comment["variables"]["body"].as_str().unwrap();
+                assert!(text.starts_with("planeai: Task moved to Complete at 20"), "{text}");
+                assert_eq!(text.len(), "planeai: Task moved to Complete at 2026-11-05T12:00:00Z".len());
+            })
+            .await;
+        }
+
+        #[tokio::test]
+        async fn unlinked_tasks_and_sources_without_writeback_are_ignored() {
+            local(async {
+                let fixture = Fixture::new().await;
+                let mut plugin = synced(&fixture, json!({ "eng": { "query": { "kind": "filter", "filter": filter("ENG") } } })).await;
+                let reply = plugin.call("plugin.taskLifecycle", json!({ "batch": { "batch_id": "b3", "events": [
+                    { "type": "child_assigned", "child_key": "PLA-3", "parent_key": "ENG-1", "is_first_child_assignment": true },
+                    { "type": "status_changed", "task_key": "PLA-9", "parent_key": null, "previous_status": "todo", "new_status": "done", "cause": "direct" }
+                ] } })).await.unwrap();
+                assert_eq!(reply, json!({ "outcomes": [] }));
+            })
+            .await;
+        }
+    }
 }
