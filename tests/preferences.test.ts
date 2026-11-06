@@ -92,7 +92,10 @@ test("adds a source that syncs the user's open issues", async () => {
   buttonNamed(root, "Add source")!.click();
   await settle();
   assert.deepEqual(saved.at(-1).sources.source, { query: { kind: "filter", filter: DEFAULT_FILTER }, status_map: {}, writeback: null });
-  assert.deepEqual(DEFAULT_FILTER, { assignee: { isMe: { eq: true } }, state: { type: { nin: ["completed", "canceled"] } } });
+  assert.deepEqual(DEFAULT_FILTER, {
+    or: [{ assignee: { isMe: { eq: true } } }, { assignee: { null: true } }],
+    state: { type: { nin: ["completed", "canceled"] } },
+  });
 });
 
 test("edits the IssueFilter JSON and refuses to save invalid JSON", async () => {

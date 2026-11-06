@@ -49,7 +49,7 @@ It is either a custom view or a raw `IssueFilter`, Linear's analog of a Jira JQL
   The plugin reads `customView(id:).issues`.
 - **Issue filter.**
   Write an `IssueFilter` JSON object, which the plugin passes to `issues(filter:)`.
-  A new source starts with the open issues assigned to you: `{"assignee":{"isMe":{"eq":true}},"state":{"type":{"nin":["completed","canceled"]}}}`.
+  A new source starts with the open issues assigned to you or to no one: `{"or":[{"assignee":{"isMe":{"eq":true}}},{"assignee":{"null":true}}],"state":{"type":{"nin":["completed","canceled"]}}}`.
 
 The settings document PlaneAI stores for the plugin looks like this:
 

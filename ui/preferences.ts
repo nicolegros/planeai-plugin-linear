@@ -14,7 +14,10 @@ import type { Entrypoint } from "./host.js";
 import { baseStyles } from "./styles.js";
 
 /** Open issues assigned to the connected user, a useful and valid first source. */
-export const DEFAULT_FILTER = { assignee: { isMe: { eq: true } }, state: { type: { nin: ["completed", "canceled"] } } };
+export const DEFAULT_FILTER = {
+  or: [{ assignee: { isMe: { eq: true } } }, { assignee: { null: true } }],
+  state: { type: { nin: ["completed", "canceled"] } },
+};
 
 const styles = `${baseStyles}
   .page { max-width:600px; padding:var(--planeai-space-5); display:grid; gap:28px; }
