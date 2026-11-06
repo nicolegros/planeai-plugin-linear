@@ -44,7 +44,10 @@ test("lists synced issues with their identifier, title, status dot and accessibl
 test("registers the header and each issue for sidebar keyboard navigation", async () => {
   const { host } = mountSidebar();
   await settle();
-  assert.deepEqual(host.registrations.at(-1)?.map((row) => row.id), ["header", "issue:uuid-1", "issue:uuid-2"]);
+  assert.deepEqual(
+    host.registrations.at(-1)?.map((row) => row.id),
+    ["header", "issue:uuid-1", "issue:uuid-2"],
+  );
 });
 
 test("Enter on an issue selects it, then opens the assign dialog for it", async () => {
@@ -53,14 +56,19 @@ test("Enter on an issue selects it, then opens the assign dialog for it", async 
   press("Enter", rows(root)[1]);
   await settle();
   assert.deepEqual(host.selected, ["issue:uuid-2"]);
-  assert.deepEqual(host.calls.find((call) => call.method === "linear.assignment.select")?.params, { issue_id: "uuid-2" });
+  assert.deepEqual(host.calls.find((call) => call.method === "linear.assignment.select")?.params, {
+    issue_id: "uuid-2",
+  });
   assert.deepEqual(host.navigation, ["open:linear:assign"]);
 });
 
 test("keyboard selection through the host registration opens the dialog too", async () => {
   const { host } = mountSidebar();
   await settle();
-  host.registrations.at(-1)?.find((row) => row.id === "issue:uuid-1")?.onSelect?.();
+  host.registrations
+    .at(-1)
+    ?.find((row) => row.id === "issue:uuid-1")
+    ?.onSelect?.();
   await settle();
   assert.deepEqual(host.navigation, ["open:linear:assign"]);
 });
@@ -75,7 +83,9 @@ test("a failed selection is reported instead of opening the dialog", async () =>
   rows(root)[0].click();
   await settle();
   assert.deepEqual(host.navigation, []);
-  assert.deepEqual(host.notifications, ["Could not open ENG-1: this Linear issue is no longer available"]);
+  assert.deepEqual(host.notifications, [
+    "Could not open ENG-1: this Linear issue is no longer available",
+  ]);
 });
 
 test("the header collapses the list and leaves only itself registered", async () => {
@@ -84,7 +94,10 @@ test("the header collapses the list and leaves only itself registered", async ()
   root.querySelector<HTMLButtonElement>(".section-header")!.click();
   assert.equal(rows(root).length, 0);
   assert.equal(root.querySelector(".section-header")?.getAttribute("aria-expanded"), "false");
-  assert.deepEqual(host.registrations.at(-1)?.map((row) => row.id), ["header"]);
+  assert.deepEqual(
+    host.registrations.at(-1)?.map((row) => row.id),
+    ["header"],
+  );
 });
 
 test("refreshes when plugin data or PlaneAI task data changes, and unsubscribes on unmount", async () => {

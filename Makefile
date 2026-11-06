@@ -19,7 +19,7 @@ else
   PLATFORM := unsupported
 endif
 
-.PHONY: build-ui lint test package verify-package clean
+.PHONY: build-ui fmt lint test package verify-package clean
 
 UI_ENTRYPOINTS := preferences sidebar departures assign
 
@@ -27,9 +27,15 @@ build-ui:
 	pnpm exec tsc
 	pnpm exec esbuild $(UI_ENTRYPOINTS:%=ui/%.ts) --bundle --format=esm --target=es2022 --log-level=warning --outdir=build/package/ui
 
+fmt:
+	cargo fmt
+	pnpm exec oxfmt
+
 lint:
 	cargo fmt --check
 	cargo clippy --all-targets -- -D warnings
+	pnpm exec oxfmt --check
+	pnpm exec oxlint --deny-warnings
 
 test: lint build-ui
 	cargo test

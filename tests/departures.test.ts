@@ -4,7 +4,12 @@ import { deferred, installDom, settle } from "./ui-harness.js";
 import { fakeHost, mountInto } from "./fake-host.js";
 import departures from "../ui/departures.js";
 
-const one = { issue_id: "uuid-1", identifier: "ENG-1", task_key: "ENG-1", title: "Gone from the view" };
+const one = {
+  issue_id: "uuid-1",
+  identifier: "ENG-1",
+  task_key: "ENG-1",
+  title: "Gone from the view",
+};
 const two = { issue_id: "uuid-2", identifier: "ENG-2", task_key: "ENG-2", title: "Also gone" };
 
 beforeEach(() => {
@@ -29,7 +34,11 @@ function mountDepartures(answers = {}) {
   return { host, ...mounted, queue: () => queue };
 }
 
-const visible = (toast) => ({ ...toast, actions: toast.actions?.map(({ key, label }) => ({ key, label })), dismiss: typeof toast.dismiss });
+const visible = (toast) => ({
+  ...toast,
+  actions: toast.actions?.map(({ key, label }) => ({ key, label })),
+  dismiss: typeof toast.dismiss,
+});
 
 test("shows the next departed issue in PlaneAI's toast stack, rendering nothing itself", async () => {
   const { host, root } = mountDepartures();
@@ -50,7 +59,9 @@ test("Done resolves through the sidecar, then shows the next issue", async () =>
   await settle();
   await host.toasts.at(-1)!.actions![0].run();
   await settle();
-  assert.deepEqual(host.calls.find((call) => call.method === "linear.departures.resolve")?.params, { issue_id: "uuid-1" });
+  assert.deepEqual(host.calls.find((call) => call.method === "linear.departures.resolve")?.params, {
+    issue_id: "uuid-1",
+  });
   assert.equal(host.toasts.at(-1)!.message, "ENG-2 left your Linear view");
   assert.equal(host.changes(), 1);
 });
@@ -64,7 +75,9 @@ test("a failed Done keeps the issue queued and reports it", async () => {
   await settle();
   await host.toasts.at(-1)!.actions![0].run();
   await settle();
-  assert.deepEqual(host.notifications, ["Could not mark ENG-1 done: failed to mark ENG-1 done: not granted"]);
+  assert.deepEqual(host.notifications, [
+    "Could not mark ENG-1 done: failed to mark ENG-1 done: not granted",
+  ]);
   assert.equal(host.toasts.at(-1)!.message, "ENG-1 left your Linear view");
 });
 
@@ -74,7 +87,10 @@ test("dismissing dequeues the issue without marking it done", async () => {
   const dismiss = host.toasts.at(-1)!.dismiss as () => Promise<void>;
   await dismiss();
   await settle();
-  assert.deepEqual(host.methods().filter((method) => method !== "linear.departures.list"), ["linear.departures.dequeue"]);
+  assert.deepEqual(
+    host.methods().filter((method) => method !== "linear.departures.list"),
+    ["linear.departures.dequeue"],
+  );
   assert.deepEqual(queue(), [two]);
   assert.equal(host.toasts.at(-1)!.message, "ENG-2 left your Linear view");
 });
@@ -86,7 +102,12 @@ test("shows progress while Done runs and ignores data refreshes until it settles
   const done = host.toasts.at(-1)!.actions![0].run();
   await settle();
   assert.deepEqual(visible(host.toasts.at(-1)), {
-    id: "departed", kind: "warning", message: "Marking ENG-1 done…", detail: "Gone from the view", actions: undefined, dismiss: "string",
+    id: "departed",
+    kind: "warning",
+    message: "Marking ENG-1 done…",
+    detail: "Gone from the view",
+    actions: undefined,
+    dismiss: "string",
   });
   assert.equal(host.toasts.at(-1)!.dismiss, "disabled");
   const shown = host.toasts.length;
@@ -111,5 +132,7 @@ test("an empty queue dismisses the toast, and unmounting removes it", async () =
 test("without host API v7 it asks for a newer PlaneAI instead of failing", async () => {
   const host = fakeHost({}, {}, { v7: false });
   mountInto(departures, host.context);
-  assert.deepEqual(host.notifications, ["Departed Linear issues need PlaneAI with plugin host API v7."]);
+  assert.deepEqual(host.notifications, [
+    "Departed Linear issues need PlaneAI with plugin host API v7.",
+  ]);
 });

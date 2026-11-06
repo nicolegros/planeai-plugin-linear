@@ -15,7 +15,11 @@ export type Source = {
   writeback: Writeback | null;
 };
 
-export type Settings = { sync_interval_ms: number; sources: Record<string, Source> };
+export type Settings = {
+  sync_interval_ms: number;
+  sources: Record<string, Source>;
+  key_prefixes?: Record<string, string>;
+};
 
 export type WritebackOutcome = {
   identifier: string;
@@ -44,7 +48,12 @@ export type SyncTotals = {
   skipped?: string[];
 };
 
-export type SidebarItem = { issue_id: string; identifier: string; title: string; status: TaskStatus };
+export type SidebarItem = {
+  issue_id: string;
+  identifier: string;
+  title: string;
+  status: TaskStatus;
+};
 export type LinkedIssue = {
   issue_id: string;
   identifier: string;
@@ -52,7 +61,12 @@ export type LinkedIssue = {
   title: string;
   description: string;
 };
-export type DepartedIssue = { issue_id: string; identifier: string; task_key: string; title: string };
+export type DepartedIssue = {
+  issue_id: string;
+  identifier: string;
+  task_key: string;
+  title: string;
+};
 
 /** The sidecar's methods, typed. */
 export function sidecar(host: LinearHost) {
@@ -64,21 +78,27 @@ export function sidecar(host: LinearHost) {
     connectApiKey: (key: string) => host.call("linear.connect.apiKey", { key }),
     connectStart: (attemptId: string) =>
       host.call<{ authorization_url: string }>("linear.connect.start", { attempt_id: attemptId }),
-    connectComplete: (attemptId: string) => host.call("linear.connect.complete", { attempt_id: attemptId }),
-    connectCancel: (attemptId: string | null) => host.call("linear.connect.cancel", { attempt_id: attemptId }),
+    connectComplete: (attemptId: string) =>
+      host.call("linear.connect.complete", { attempt_id: attemptId }),
+    connectCancel: (attemptId: string | null) =>
+      host.call("linear.connect.cancel", { attempt_id: attemptId }),
     openBrowser: (url: string) => host.call("linear.open_browser", { url }),
     disconnect: () => host.call("linear.disconnect"),
     sidebarItems: () => host.call<{ items: SidebarItem[] }>("linear.sidebar.items"),
     selectIssue: (issueId: string) => host.call("linear.assignment.select", { issue_id: issueId }),
     currentIssue: () => host.call<LinkedIssue>("linear.assignment.current"),
     departures: () => host.call<{ items: DepartedIssue[] }>("linear.departures.list"),
-    resolveDeparture: (issueId: string) => host.call("linear.departures.resolve", { issue_id: issueId }),
-    dequeueDeparture: (issueId: string) => host.call("linear.departures.dequeue", { issue_id: issueId }),
+    resolveDeparture: (issueId: string) =>
+      host.call("linear.departures.resolve", { issue_id: issueId }),
+    dequeueDeparture: (issueId: string) =>
+      host.call("linear.departures.dequeue", { issue_id: issueId }),
   };
 }
 
 export function statusLabel(status: TaskStatus): string {
-  return { todo: "To do", in_progress: "In progress", in_review: "In review", done: "Done" }[status];
+  return { todo: "To do", in_progress: "In progress", in_review: "In review", done: "Done" }[
+    status
+  ];
 }
 
 export function errorMessage(error: unknown): string {

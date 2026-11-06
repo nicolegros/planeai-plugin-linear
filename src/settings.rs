@@ -1,4 +1,4 @@
-use crate::model::TaskStatus;
+use crate::model::{TaskKey, TaskStatus};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
@@ -17,6 +17,9 @@ pub struct Settings {
     pub sync_interval_ms: u64,
     #[serde(default)]
     pub sources: BTreeMap<SourceName, Source>,
+    /// PlaneAI key prefixes for Linear team keys a PlaneAI project already uses, such as `TRA` to `LTRA`.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub key_prefixes: BTreeMap<String, String>,
 }
 
 fn default_sync_interval_ms() -> u64 {
@@ -28,6 +31,7 @@ impl Default for Settings {
         Self {
             sync_interval_ms: DEFAULT_SYNC_INTERVAL_MS,
             sources: BTreeMap::new(),
+            key_prefixes: BTreeMap::new(),
         }
     }
 }
@@ -99,7 +103,44 @@ impl Settings {
         serde_json::to_value(self).expect("settings always serialize")
     }
 
+    /// The PlaneAI task key for a Linear identifier, under its team's mapped prefix if it has one.
+    pub fn task_key(&self, identifier: &str) -> TaskKey {
+        match identifier
+            .rsplit_once('-')
+            .and_then(|(team, number)| Some((self.key_prefixes.get(team)?, number)))
+        {
+            Some((prefix, number)) => TaskKey(format!("{prefix}-{number}")),
+            None => TaskKey(identifier.to_string()),
+        }
+    }
+
+    fn validate_key_prefixes(&self) -> Result<(), SettingsError> {
+        let well_formed = |prefix: &str| {
+            (1..=10).contains(&prefix.len())
+                && prefix.starts_with(|c: char| c.is_ascii_uppercase())
+                && prefix
+                    .chars()
+                    .all(|c| c.is_ascii_uppercase() || c.is_ascii_digit())
+        };
+        let mut used = BTreeSet::new();
+        for (team, prefix) in &self.key_prefixes {
+            if !well_formed(team) || !well_formed(prefix) {
+                return Err(SettingsError(format!(
+                    "key prefix {team:?} to {prefix:?} must use 1 to 10 uppercase letters and digits, starting with a letter"
+                )));
+            }
+            // Two teams under one prefix, or a prefix another mapped team keeps, would share keys.
+            if self.key_prefixes.contains_key(prefix) || !used.insert(prefix) {
+                return Err(SettingsError(format!(
+                    "key prefix {prefix:?} for {team:?} is already used by another Linear team"
+                )));
+            }
+        }
+        Ok(())
+    }
+
     fn validate(&self) -> Result<(), SettingsError> {
+        self.validate_key_prefixes()?;
         if self.sync_interval_ms < MIN_SYNC_INTERVAL_MS {
             return Err(SettingsError(format!(
                 "sync_interval_ms must be at least {MIN_SYNC_INTERVAL_MS}"
@@ -240,6 +281,31 @@ impl SettingsTransition {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_mapped_team_key_takes_its_prefix_and_others_keep_theirs() {
+        let settings = Settings::parse(&json!({ "key_prefixes": { "TRA": "LTRA" } })).unwrap();
+        assert_eq!(settings.task_key("TRA-13"), TaskKey("LTRA-13".into()));
+        assert_eq!(settings.task_key("ENG-4"), TaskKey("ENG-4".into()));
+    }
+
+    #[test]
+    fn key_prefixes_must_be_well_formed_and_never_shared() {
+        for key_prefixes in [
+            json!({ "TRA": "ltra" }),
+            json!({ "TRA": "" }),
+            json!({ "TRA": "1TRA" }),
+            json!({ "TRA": "L-TRA" }),
+            json!({ "TRA": "ABCDEFGHIJK" }),
+            json!({ "TRA": "ENG", "ENG": "LENG" }),
+            json!({ "TRA": "LX", "OPS": "LX" }),
+        ] {
+            assert!(
+                Settings::parse(&json!({ "key_prefixes": key_prefixes })).is_err(),
+                "{key_prefixes} was accepted"
+            );
+        }
+    }
+
     use super::*;
     use serde_json::json;
 

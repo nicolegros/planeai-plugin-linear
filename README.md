@@ -67,11 +67,12 @@ The settings document PlaneAI stores for the plugin looks like this:
       "status_map": {},
       "writeback": null
     }
-  }
+  },
+  "key_prefixes": { "TRA": "LTRA" }
 }
 ```
 
-The sidecar validates every update and rejects malformed settings instead of guessing: an unknown field, a blank or malformed view, a filter that is not a non-empty object, a status that is not `todo`, `in_progress`, `in_review` or `done`, a blank writeback state, or an interval under 10 seconds.
+The sidecar validates every update and rejects malformed settings instead of guessing: an unknown field, a blank or malformed view, a filter that is not a non-empty object, a status that is not `todo`, `in_progress`, `in_review` or `done`, a blank writeback state, an interval under 10 seconds, or a key prefix that is not 1 to 10 uppercase letters and digits starting with a letter, or that two teams would share.
 Renaming a source keeps its issues; removing one lets its issues go quietly, without asking you about them.
 
 ## Status and priority mapping
@@ -93,6 +94,10 @@ The task keeps the key it was created with when the issue moves to another team 
 A local task that already uses the key and was not created by the plugin is never overwritten.
 The sync skips that issue, keeps syncing the rest of its source, and lists the skipped keys under Sync Now.
 This happens when a Linear team key matches a PlaneAI project prefix, for an issue whose number the project already used.
+Sync Now then offers a prefix for that team, such as `LTRA` for `TRA`, saves it in `key_prefixes`, and syncs again.
+The team's issues then sync as tasks such as `LTRA-13`, and the Linear sidebar still shows them as `TRA-13`.
+Tasks already synced keep their keys when a prefix is added or removed, and Preferences lists each prefix with a way to remove it.
+An issue whose mapped key another synced issue already holds, such as `OPS-1` mapped to `ENG-1` while team `ENG` syncs, is skipped the same way instead of sharing that task.
 One failing source never stops the others; the totals list each error.
 
 An issue that leaves every source's results is a departure.
@@ -136,7 +141,8 @@ You need Rust (stable), Node 22 or later, and pnpm 10.28.2.
 
 ```bash
 pnpm install --frozen-lockfile
-make test            # rustfmt, clippy, Rust tests, UI tests in jsdom, manifest and release contract tests
+make test            # rustfmt, clippy, oxfmt, oxlint, Rust tests, UI tests in jsdom, manifest and release contract tests
+make fmt             # format Rust and TypeScript
 make package         # stage dist/planeai-plugin-linear for this machine
 make verify-package  # stage, then check the binary's handshake against the manifest
 ```

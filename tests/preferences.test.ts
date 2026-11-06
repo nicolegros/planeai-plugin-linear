@@ -5,11 +5,19 @@ import { fakeHost, mountInto } from "./fake-host.js";
 import preferences, { DEFAULT_FILTER } from "../ui/preferences.js";
 
 const disconnected = {
-  connected: false, authorizing: false, oauth_available: false, auth_kind: null,
-  organization: null, last_error: null, last_writeback: null,
+  connected: false,
+  authorizing: false,
+  oauth_available: false,
+  auth_kind: null,
+  organization: null,
+  last_error: null,
+  last_writeback: null,
 };
 const connected = {
-  ...disconnected, connected: true, auth_kind: "api_key", organization: { id: "org-1", name: "Acme", url_key: "acme" },
+  ...disconnected,
+  connected: true,
+  auth_kind: "api_key",
+  organization: { id: "org-1", name: "Acme", url_key: "acme" },
 };
 const engSource = {
   query: { kind: "filter", filter: { team: { key: { eq: "ENG" } } } },
@@ -21,7 +29,11 @@ beforeEach(() => {
   installDom();
 });
 
-function mountPreferences({ status = connected as any, settings = { sync_interval_ms: 60000, sources: { eng: engSource } } as any, answers = {} } = {}) {
+function mountPreferences({
+  status = connected as any,
+  settings = { sync_interval_ms: 60000, sources: { eng: engSource } } as any,
+  answers = {},
+} = {}) {
   let currentStatus = status;
   const saved: any[] = [];
   const host = fakeHost({
@@ -38,9 +50,13 @@ function mountPreferences({ status = connected as any, settings = { sync_interva
 }
 
 const buttonNamed = (root: Element, name: string) =>
-  [...root.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent === name);
+  [...root.querySelectorAll<HTMLButtonElement>("button")].find(
+    (button) => button.textContent === name,
+  );
 const fieldNamed = <T extends HTMLElement>(root: Element, label: string) => {
-  const heading = [...root.querySelectorAll("label")].find((candidate) => candidate.textContent === label)!;
+  const heading = [...root.querySelectorAll("label")].find(
+    (candidate) => candidate.textContent === label,
+  )!;
   return root.querySelector<T>(`#${heading.htmlFor}`)!;
 };
 
@@ -51,7 +67,11 @@ test("connects with a pasted personal API key", async () => {
   });
   await settle();
   assert.equal(root.querySelector(".card .muted")?.textContent, "Not connected");
-  assert.equal(buttonNamed(root, "Connect with Linear"), undefined, "this build has no OAuth client");
+  assert.equal(
+    buttonNamed(root, "Connect with Linear"),
+    undefined,
+    "this build has no OAuth client",
+  );
   const key = root.querySelector<HTMLInputElement>("input[aria-label='Linear API key']")!;
   assert.equal(key.type, "password");
   assert.equal(buttonNamed(root, "Connect")!.disabled, true);
@@ -60,8 +80,13 @@ test("connects with a pasted personal API key", async () => {
   setStatus(connected);
   buttonNamed(root, "Connect")!.click();
   await settle();
-  assert.deepEqual(host.calls.find((call) => call.method === "linear.connect.apiKey")?.params, { key: "lin_api_secret" });
-  assert.equal(root.querySelector(".card .muted")?.textContent, "Connected to Acme (acme) with an API key");
+  assert.deepEqual(host.calls.find((call) => call.method === "linear.connect.apiKey")?.params, {
+    key: "lin_api_secret",
+  });
+  assert.equal(
+    root.querySelector(".card .muted")?.textContent,
+    "Connected to Acme (acme) with an API key",
+  );
   assert.equal(host.changes(), 1);
 });
 
@@ -80,10 +105,17 @@ test("offers OAuth when the build has a client id, and runs the browser flow wit
   await settle();
   buttonNamed(root, "Connect with Linear")!.click();
   await settle();
-  const attempts = host.calls.filter((call) => call.method.startsWith("linear.connect")).map((call) => (call.params as any).attempt_id);
+  const attempts = host.calls
+    .filter((call) => call.method.startsWith("linear.connect"))
+    .map((call) => (call.params as any).attempt_id);
   assert.equal(new Set(attempts).size, 1);
-  assert.deepEqual(host.calls.find((call) => call.method === "linear.open_browser")?.params, { url: "https://linear.app/oauth/authorize?x" });
-  assert.equal(root.querySelector(".card .muted")?.textContent, "Connected to Acme (acme) with OAuth");
+  assert.deepEqual(host.calls.find((call) => call.method === "linear.open_browser")?.params, {
+    url: "https://linear.app/oauth/authorize?x",
+  });
+  assert.equal(
+    root.querySelector(".card .muted")?.textContent,
+    "Connected to Acme (acme) with OAuth",
+  );
 });
 
 test("adds a source that syncs the user's open issues", async () => {
@@ -91,7 +123,11 @@ test("adds a source that syncs the user's open issues", async () => {
   await settle();
   buttonNamed(root, "Add source")!.click();
   await settle();
-  assert.deepEqual(saved.at(-1).sources.source, { query: { kind: "filter", filter: DEFAULT_FILTER }, status_map: {}, writeback: null });
+  assert.deepEqual(saved.at(-1).sources.source, {
+    query: { kind: "filter", filter: DEFAULT_FILTER },
+    status_map: {},
+    writeback: null,
+  });
   assert.deepEqual(DEFAULT_FILTER, {
     or: [{ assignee: { isMe: { eq: true } } }, { assignee: { null: true } }],
     state: { type: { nin: ["completed", "canceled"] } },
@@ -103,13 +139,25 @@ test("edits the IssueFilter JSON and refuses to save invalid JSON", async () => 
   await settle();
   const filter = fieldNamed<HTMLTextAreaElement>(root, "IssueFilter JSON");
   change(filter, "{ not json");
-  assert.match(root.querySelector("[role='alert']")!.textContent!, /^IssueFilter is not valid JSON: /);
+  assert.match(
+    root.querySelector("[role='alert']")!.textContent!,
+    /^IssueFilter is not valid JSON: /,
+  );
   change(fieldNamed<HTMLTextAreaElement>(root, "IssueFilter JSON"), "[]");
-  assert.equal(root.querySelector("[role='alert']")!.textContent, "IssueFilter must be a JSON object");
+  assert.equal(
+    root.querySelector("[role='alert']")!.textContent,
+    "IssueFilter must be a JSON object",
+  );
   assert.deepEqual(saved, []);
-  change(fieldNamed<HTMLTextAreaElement>(root, "IssueFilter JSON"), '{"team":{"key":{"eq":"OPS"}}}');
+  change(
+    fieldNamed<HTMLTextAreaElement>(root, "IssueFilter JSON"),
+    '{"team":{"key":{"eq":"OPS"}}}',
+  );
   await settle();
-  assert.deepEqual(saved.at(-1).sources.eng.query, { kind: "filter", filter: { team: { key: { eq: "OPS" } } } });
+  assert.deepEqual(saved.at(-1).sources.eng.query, {
+    kind: "filter",
+    filter: { team: { key: { eq: "OPS" } } },
+  });
   assert.equal(root.querySelector("[role='alert']"), null);
 });
 
@@ -118,9 +166,15 @@ test("switches a source to a custom view and saves it once a URL is entered", as
   await settle();
   change(root.querySelector<HTMLSelectElement>("select[aria-label='Query kind for eng']")!, "view");
   assert.deepEqual(saved, [], "an empty view is not saved");
-  change(fieldNamed<HTMLInputElement>(root, "Custom view URL"), " https://linear.app/acme/view/mine-0a1b2c3d4e5f ");
+  change(
+    fieldNamed<HTMLInputElement>(root, "Custom view URL"),
+    " https://linear.app/acme/view/mine-0a1b2c3d4e5f ",
+  );
   await settle();
-  assert.deepEqual(saved.at(-1).sources.eng.query, { kind: "view", view: "https://linear.app/acme/view/mine-0a1b2c3d4e5f" });
+  assert.deepEqual(saved.at(-1).sources.eng.query, {
+    kind: "view",
+    view: "https://linear.app/acme/view/mine-0a1b2c3d4e5f",
+  });
 });
 
 test("edits writeback targets and the comment toggle, and clears writeback when all are unset", async () => {
@@ -128,12 +182,20 @@ test("edits writeback targets and the comment toggle, and clears writeback when 
   await settle();
   change(fieldNamed<HTMLInputElement>(root, "When work starts, move to"), " In Progress ");
   await settle();
-  assert.deepEqual(saved.at(-1).sources.eng.writeback, { on_start: "In Progress", on_complete: null, comment: false });
+  assert.deepEqual(saved.at(-1).sources.eng.writeback, {
+    on_start: "In Progress",
+    on_complete: null,
+    comment: false,
+  });
   change(fieldNamed<HTMLInputElement>(root, "When the task is done, move to"), "Done");
   await settle();
   change(root.querySelector<HTMLInputElement>("input[type='checkbox']")!, true);
   await settle();
-  assert.deepEqual(saved.at(-1).sources.eng.writeback, { on_start: "In Progress", on_complete: "Done", comment: true });
+  assert.deepEqual(saved.at(-1).sources.eng.writeback, {
+    on_start: "In Progress",
+    on_complete: "Done",
+    comment: true,
+  });
   change(fieldNamed<HTMLInputElement>(root, "When work starts, move to"), "");
   await settle();
   change(fieldNamed<HTMLInputElement>(root, "When the task is done, move to"), "");
@@ -146,13 +208,21 @@ test("edits writeback targets and the comment toggle, and clears writeback when 
 test("edits, adds and removes status mappings", async () => {
   const { root, saved } = mountPreferences();
   await settle();
-  change(root.querySelector<HTMLSelectElement>("select[aria-label='PlaneAI status for In QA']")!, "done");
+  change(
+    root.querySelector<HTMLSelectElement>("select[aria-label='PlaneAI status for In QA']")!,
+    "done",
+  );
   await settle();
   assert.deepEqual(saved.at(-1).sources.eng.status_map, { "In QA": "done" });
   buttonNamed(root, "Add status mapping")!.click();
   await settle();
-  assert.deepEqual(saved.at(-1).sources.eng.status_map, { "In QA": "done", "Linear state": "todo" });
-  root.querySelector<HTMLButtonElement>("button[aria-label='Remove status mapping for In QA']")!.click();
+  assert.deepEqual(saved.at(-1).sources.eng.status_map, {
+    "In QA": "done",
+    "Linear state": "todo",
+  });
+  root
+    .querySelector<HTMLButtonElement>("button[aria-label='Remove status mapping for In QA']")!
+    .click();
   await settle();
   assert.deepEqual(saved.at(-1).sources.eng.status_map, { "Linear state": "todo" });
 });
@@ -169,7 +239,10 @@ test("renames a source and edits the sync interval in seconds", async () => {
   change(fieldNamed<HTMLInputElement>(root, "Sync interval (seconds)"), "2");
   await settle();
   assert.equal(saved.length, 2);
-  assert.equal(root.querySelector("[role='alert']")?.textContent, "Sync interval must be a whole number of seconds, at least 10.");
+  assert.equal(
+    root.querySelector("[role='alert']")?.textContent,
+    "Sync interval must be a whole number of seconds, at least 10.",
+  );
 });
 
 test("serializes saves without dropping an earlier optimistic change", async () => {
@@ -185,7 +258,10 @@ test("serializes saves without dropping an earlier optimistic change", async () 
     },
   });
   await settle();
-  change(root.querySelector<HTMLSelectElement>("select[aria-label='PlaneAI status for In QA']")!, "done");
+  change(
+    root.querySelector<HTMLSelectElement>("select[aria-label='PlaneAI status for In QA']")!,
+    "done",
+  );
   buttonNamed(root, "Add status mapping")!.click();
   await settle();
   assert.deepEqual(order, ['{"In QA":"done"}']);
@@ -199,7 +275,10 @@ test("Sync Now shows totals and every source error", async () => {
   const { root } = mountPreferences({
     answers: {
       "linear.syncNow": () => ({
-        created: 2, updated: 1, departed: 0, errors: 1,
+        created: 2,
+        updated: 1,
+        departed: 0,
+        errors: 1,
         error_messages: ["ops: Linear GraphQL error: Invalid filter"],
       }),
     },
@@ -207,23 +286,147 @@ test("Sync Now shows totals and every source error", async () => {
   await settle();
   buttonNamed(root, "Sync Now")!.click();
   await settle();
-  assert.equal(root.querySelector(".warning")?.textContent, "2 created · 1 updated · 0 departed · 1 error");
-  assert.deepEqual([...root.querySelectorAll("ul.error li")].map((item) => item.textContent), ["ops: Linear GraphQL error: Invalid filter"]);
+  assert.equal(
+    root.querySelector(".warning")?.textContent,
+    "2 created · 1 updated · 0 departed · 1 error",
+  );
+  assert.deepEqual(
+    [...root.querySelectorAll("ul.error li")].map((item) => item.textContent),
+    ["ops: Linear GraphQL error: Invalid filter"],
+  );
 });
 
-test("Sync Now names the issues a PlaneAI task's key kept from syncing", async () => {
-  const { root } = mountPreferences({
+test("Sync Now offers to sync a team whose keys a PlaneAI project uses under another prefix", async () => {
+  let syncs = 0;
+  const { root, saved } = mountPreferences({
     answers: {
-      "linear.syncNow": () => ({ created: 1, updated: 0, departed: 0, errors: 0, skipped: ["PLA-1", "PLA-2"] }),
+      "linear.syncNow": () => {
+        syncs += 1;
+        return syncs === 1
+          ? {
+              created: 1,
+              updated: 0,
+              departed: 0,
+              errors: 0,
+              skipped: ["TRA-13", "TRA-12", "OPS-1"],
+            }
+          : { created: 2, updated: 0, departed: 0, errors: 0 };
+      },
     },
   });
   await settle();
   buttonNamed(root, "Sync Now")!.click();
   await settle();
-  assert.deepEqual([...root.querySelectorAll(".muted, .warning")].map((line) => line.textContent).slice(-2), [
-    "1 created · 0 updated · 0 departed · 0 errors",
-    "Not synced, because a PlaneAI task already uses the key: PLA-1, PLA-2",
-  ]);
+  assert.deepEqual(
+    [...root.querySelectorAll(".prefix-offer .warning")].map((line) => line.textContent),
+    [
+      "Not synced, because PlaneAI tasks already use their keys: TRA-13, TRA-12.",
+      "Not synced, because PlaneAI tasks already use their keys: OPS-1.",
+    ],
+  );
+  const prefix = root.querySelector<HTMLInputElement>(
+    "input[aria-label='PlaneAI key prefix for TRA issues']",
+  )!;
+  assert.equal(prefix.value, "LTRA");
+
+  buttonNamed(root, "Sync TRA issues under this prefix")!.click();
+  await settle();
+
+  assert.deepEqual(saved.at(-1).key_prefixes, { TRA: "LTRA" });
+  assert.equal(syncs, 2);
+  assert.equal(root.querySelector(".prefix-offer"), null);
+  assert.ok(
+    [...root.querySelectorAll("span")].some((span) => span.textContent === "TRA-N syncs as LTRA-N"),
+  );
+});
+
+test("an offer whose prefix the sidecar rejects shows the error and does not sync", async () => {
+  let syncs = 0;
+  const { root } = mountPreferences({
+    answers: {
+      "linear.syncNow": () => {
+        syncs += 1;
+        return { created: 0, updated: 0, departed: 0, errors: 0, skipped: ["TRA-13"] };
+      },
+      "linear.settings.update": () => {
+        throw new Error(
+          'key prefix "TRA" to "L-TRA" must use 1 to 10 uppercase letters and digits, starting with a letter',
+        );
+      },
+    },
+  });
+  await settle();
+  buttonNamed(root, "Sync Now")!.click();
+  await settle();
+  root.querySelector<HTMLInputElement>(
+    "input[aria-label='PlaneAI key prefix for TRA issues']",
+  )!.value = "L-TRA";
+
+  buttonNamed(root, "Sync TRA issues under this prefix")!.click();
+  await settle();
+
+  assert.equal(syncs, 1);
+  assert.equal(
+    root.querySelector("[role='alert']")?.textContent,
+    'key prefix "TRA" to "L-TRA" must use 1 to 10 uppercase letters and digits, starting with a letter',
+  );
+});
+
+test("a mapped team whose prefix is taken too names the key it tried and offers another", async () => {
+  const { root } = mountPreferences({
+    settings: {
+      sync_interval_ms: 60000,
+      sources: { eng: engSource },
+      key_prefixes: { TRA: "LTRA" },
+    },
+    answers: {
+      "linear.syncNow": () => ({
+        created: 0,
+        updated: 0,
+        departed: 0,
+        errors: 0,
+        skipped: ["TRA-13"],
+      }),
+    },
+  });
+  await settle();
+  buttonNamed(root, "Sync Now")!.click();
+  await settle();
+
+  assert.equal(
+    root.querySelector(".prefix-offer .warning")?.textContent,
+    "Not synced, because PlaneAI tasks already use their keys: TRA-13 as LTRA-13.",
+  );
+  assert.equal(
+    root.querySelector<HTMLInputElement>("input[aria-label='PlaneAI key prefix for TRA issues']")!
+      .value,
+    "TRAL",
+  );
+});
+
+test("removing a key prefix saves the map without it", async () => {
+  const { root, saved } = mountPreferences({
+    settings: {
+      sync_interval_ms: 60000,
+      sources: { eng: engSource },
+      key_prefixes: { TRA: "LTRA", OPS: "LOPS" },
+    },
+  });
+  await settle();
+  const rows = [...root.querySelectorAll(".key-prefixes .row")];
+  assert.deepEqual(
+    rows.map((row) => row.querySelector("span")?.textContent),
+    ["OPS-N syncs as LOPS-N", "TRA-N syncs as LTRA-N"],
+  );
+
+  rows[1].querySelector("button")!.click();
+  await settle();
+
+  assert.deepEqual(saved.at(-1).key_prefixes, { OPS: "LOPS" });
+  assert.deepEqual(
+    [...root.querySelectorAll(".key-prefixes .row span")].map((span) => span.textContent),
+    ["OPS-N syncs as LOPS-N"],
+  );
 });
 
 test("a rejected save shows the sidecar's validation error", async () => {
@@ -237,5 +440,8 @@ test("a rejected save shows the sidecar's validation error", async () => {
   await settle();
   buttonNamed(root, "Add status mapping")!.click();
   await settle();
-  assert.equal(root.querySelector("[role='alert']")?.textContent, 'Linear source "eng": requires a non-empty custom view URL or id');
+  assert.equal(
+    root.querySelector("[role='alert']")?.textContent,
+    'Linear source "eng": requires a non-empty custom view URL or id',
+  );
 });
