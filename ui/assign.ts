@@ -7,7 +7,8 @@ import { baseStyles } from "./styles.js";
 type Project = { id: string; name: string; path: string };
 
 const styles = `${baseStyles}${comboboxStyles}
-  .assignment { display:grid; gap:14px; padding:4px 0 8px; outline:none; }
+  .assignment { padding:4px var(--planeai-space-5) var(--planeai-space-5); outline:none; }
+  .assignment > form { display:grid; gap:14px; }
   .preview { display:grid; gap:4px; border:1px solid var(--planeai-border); border-radius:8px; padding:10px; }
   .preview h3 { margin:0; font-size:14px; }
   .preview p { white-space:pre-wrap; margin:0; color:var(--planeai-text-muted); font-size:12px; max-height:180px; overflow:auto; }
