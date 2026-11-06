@@ -29,7 +29,7 @@ const rows = (root: Element) => [...root.querySelectorAll<HTMLButtonElement>(".i
 test("lists synced issues with their identifier, title, status dot and accessible labels", async () => {
   const { root } = mountSidebar();
   await settle();
-  assert.equal(root.querySelector(".section-header")?.textContent, "⌄ Linear2");
+  assert.equal(root.querySelector(".section-header")?.textContent, "Linear2");
   assert.deepEqual(
     rows(root).map((row) => row.getAttribute("aria-label")),
     ["ENG-1: Sync the sidebar. Status: To do", "ENG-2: Ship the plugin. Status: In review"],
