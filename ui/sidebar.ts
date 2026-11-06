@@ -2,17 +2,17 @@ import { errorMessage, sidecar, statusLabel, type SidebarItem } from "./api.js";
 import { PLUGIN_ID, type Entrypoint, type SidebarRow } from "./host.js";
 import { baseStyles } from "./styles.js";
 
-// Mirrors the native sidebar's section header and rows, over the sidebar the host shows through the frame.
+// Mirrors the native sidebar's section header and rows.
 const styles = `${baseStyles}
-  html,body { background:transparent; }
+  html,body { background:transparent; } /* hosts before PlaneAI's content-sized sections paint this frame */
   section { display:flex; flex-direction:column; gap:2px; padding:2px; }
   .section-header,.issue { width:100%; min-height:0; display:flex; align-items:center; gap:6px; border:0; border-radius:var(--planeai-radius); text-align:left; background:transparent; }
   .section-header { margin-bottom:2px; padding:4px 8px; font-size:11px; line-height:16px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--planeai-text-muted); }
   .issue { padding:6px 8px 6px 16px; font-size:13px; line-height:18px; color:var(--planeai-text); }
-  .issue:hover:not(:disabled),.section-header:hover:not(:disabled) { background:var(--planeai-surface-raised); color:inherit; }
+  .issue:hover:not(:disabled),.section-header:hover:not(:disabled) { background:var(--planeai-surface-raised); }
   .section-header:hover:not(:disabled) { color:var(--planeai-text-muted); }
   .section-header:focus,.issue:focus { outline:none; }
-  .section-header.selected,.issue.selected,.section-header:focus-visible,.issue:focus-visible { outline:none; box-shadow:inset 0 0 0 2px var(--planeai-accent); }
+  .section-header.selected,.issue.selected,.section-header:focus-visible,.issue:focus-visible { box-shadow:inset 0 0 0 2px var(--planeai-accent); outline:2px solid transparent; outline-offset:-2px; }
   .chevron { width:12px; height:12px; flex:0 0 auto; color:var(--planeai-text-subtle); }
   .dot { width:6px; height:6px; border-radius:99px; background:var(--planeai-text-subtle); flex:0 0 auto; }
   .dot.active { background:var(--planeai-info); }
@@ -87,7 +87,7 @@ const entrypoint: Entrypoint = {
       header.className = `section-header${selected === "header" ? " selected" : ""}`;
       header.setAttribute("aria-expanded", String(!collapsed));
       header.setAttribute("aria-controls", "linear-sidebar-issues");
-      header.textContent = "Linear";
+      header.textContent = "Linear ";
       const count = document.createElement("span");
       count.className = "count";
       count.textContent = String(items.length);
