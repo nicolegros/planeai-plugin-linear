@@ -95,7 +95,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: macos-15
+          - os: macos-26
             platform: macos-arm64
             binary: planeai-plugin-linear
             archive: planeai-plugin-linear-macos-arm64.tar.gz
