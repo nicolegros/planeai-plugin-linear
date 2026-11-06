@@ -151,3 +151,35 @@ test("a refresh with the same issues keeps the selection and the registration in
   host.focusRows([["issue:uuid-2", false]]);
   assert.equal(root.querySelector(".selected"), null);
 });
+
+test("a late unfocus for a row the selection already left keeps the newer selection", async () => {
+  const { host, root } = mountSidebar();
+  await settle();
+  host.focusRows([["issue:uuid-1", true]]);
+
+  host.focusRows([
+    ["issue:uuid-2", true],
+    ["issue:uuid-1", false],
+  ]);
+
+  assert.deepEqual(
+    [...root.querySelectorAll(".selected")].map((row) => row.getAttribute("aria-label")),
+    ["ENG-2: Ship the plugin. Status: In review"],
+  );
+});
+
+test("a refresh that removes the selected issue clears the selection", async () => {
+  const { host, root, setItems } = mountSidebar();
+  await settle();
+  host.focusRows([["issue:uuid-2", true]]);
+  setItems([items[0]]);
+
+  host.dataChanged();
+  await settle();
+
+  assert.equal(root.querySelector(".selected"), null);
+  assert.deepEqual(
+    rows(root).map((row) => row.getAttribute("aria-label")),
+    ["ENG-1: Sync the sidebar. Status: To do"],
+  );
+});

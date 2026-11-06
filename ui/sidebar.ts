@@ -58,6 +58,7 @@ const entrypoint: Entrypoint = {
     let registeredRows = "";
     const buttons = new Map<string, HTMLButtonElement>();
 
+    const HEADER_ROW = "header";
     const rowIdOf = (item: SidebarItem) => `issue:${item.issue_id}`;
     const itemOf = (rowId: string) => items.find((item) => rowIdOf(item) === rowId);
     const assign = async (rowId: string) => {
@@ -82,19 +83,19 @@ const entrypoint: Entrypoint = {
     const toggle = (next = !collapsed) => {
       collapsed = next;
       render();
-      select("header");
+      select(HEADER_ROW);
     };
 
     // PlaneAI addresses row events to the registration it last saw, so re-registering on every
     // render would drop the focus changes in flight; register again only when the rows change.
     const register = () => {
-      const ids = ["header", ...(collapsed ? [] : items.map(rowIdOf))];
+      const ids = [HEADER_ROW, ...(collapsed ? [] : items.map(rowIdOf))];
       if (ids.join("\n") === registeredRows) return;
       registeredRows = ids.join("\n");
       unregister();
       unregister = host.sidebar.register(
         ids.map((id): SidebarRow =>
-          id === "header"
+          id === HEADER_ROW
             ? {
                 id,
                 onSelect: () => toggle(),
@@ -108,7 +109,7 @@ const entrypoint: Entrypoint = {
                   select(id);
                   void assign(id);
                 },
-                onCollapse: () => select("header"),
+                onCollapse: () => select(HEADER_ROW),
                 onFocus: (active) => focusChanged(id, active),
               },
         ),
@@ -133,11 +134,11 @@ const entrypoint: Entrypoint = {
       count.textContent = String(items.length);
       header.append(count, chevron(collapsed));
       header.onclick = () => {
-        host.sidebar.select("header");
+        host.sidebar.select(HEADER_ROW);
         toggle();
       };
       header.onkeydown = (event) => host.sidebar.handleKeydown(event);
-      buttons.set("header", header);
+      buttons.set(HEADER_ROW, header);
       const region = document.createElement("div");
       region.id = "linear-sidebar-issues";
       region.setAttribute("role", "group");
