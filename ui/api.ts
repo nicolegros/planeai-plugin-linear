@@ -15,7 +15,7 @@ export type Source = {
   writeback: Writeback | null;
 };
 
-export type Settings = { sync_interval_ms: number; sources: Record<string, Source> };
+export type Settings = { sync_interval_ms: number; sources: Record<string, Source>; key_prefixes?: Record<string, string> };
 
 export type WritebackOutcome = {
   identifier: string;

@@ -71,6 +71,15 @@ function button(label: string, onClick: () => void, className = "") {
   return element;
 }
 
+/** The Linear team key of an identifier, such as `TRA` for `TRA-13`. */
+const teamOf = (identifier: string) => identifier.slice(0, identifier.lastIndexOf("-"));
+
+/** A free PlaneAI prefix to offer for a team whose keys a PlaneAI project already uses. */
+function suggestedPrefix(team: string, prefixes: Record<string, string>): string {
+  const taken = new Set([...Object.keys(prefixes), ...Object.values(prefixes)]);
+  return [`L${team}`, `${team}L`, `L${team}2`].find((prefix) => !taken.has(prefix)) ?? "";
+}
+
 const normalizedWriteback = (writeback: Writeback): Writeback | null =>
   writeback.on_start || writeback.on_complete || writeback.comment ? writeback : null;
 
@@ -204,6 +213,31 @@ const entrypoint: Entrypoint = {
         }
       });
 
+    /** Offers to sync a team whose keys a PlaneAI project already uses under another prefix. */
+    const prefixOffer = (team: string, identifiers: string[]) => {
+      const prefixes = settings.key_prefixes ?? {};
+      const offer = document.createElement("div");
+      offer.className = "prefix-offer";
+      const message = document.createElement("p");
+      message.className = "warning";
+      message.textContent = `Not synced, because PlaneAI tasks already use their keys: ${identifiers.join(", ")}.`;
+      const input = textInput(suggestedPrefix(team, prefixes), () => {}, { ariaLabel: `PlaneAI key prefix for ${team} issues` });
+      input.addEventListener("input", () => {
+        input.value = input.value.toUpperCase();
+      });
+      const apply = button(`Sync ${team} issues under this prefix`, () => {
+        const prefix = input.value.trim();
+        void (async () => {
+          if (await save({ ...settings, key_prefixes: { ...prefixes, [team]: prefix } })) await sync();
+        })();
+      }, "primary");
+      const row = document.createElement("div");
+      row.className = "row";
+      row.append(field(`Key prefix for ${team}`, input), apply);
+      offer.append(message, row);
+      return offer;
+    };
+
     const connectionCard = () => {
       const card = document.createElement("section");
       card.className = "card";
@@ -278,12 +312,12 @@ const entrypoint: Entrypoint = {
           }
           card.append(list);
         }
-        if (result.skipped?.length) {
-          const skipped = document.createElement("p");
-          skipped.className = "warning";
-          skipped.textContent = `Not synced, because a PlaneAI task already uses the key: ${result.skipped.join(", ")}`;
-          card.append(skipped);
+        const skippedByTeam = new Map<string, string[]>();
+        for (const identifier of result.skipped ?? []) {
+          const team = teamOf(identifier);
+          skippedByTeam.set(team, [...(skippedByTeam.get(team) ?? []), identifier]);
         }
+        for (const [team, identifiers] of skippedByTeam) card.append(prefixOffer(team, identifiers));
       }
       const writeback = status?.last_writeback;
       if (writeback) {
@@ -460,6 +494,31 @@ const entrypoint: Entrypoint = {
         );
         article.append(head, queryEditor(name, source), statusMapEditor(name, source), writebackEditor(name, source));
         card.append(article);
+      }
+      const prefixes = Object.entries(settings.key_prefixes ?? {});
+      if (prefixes.length) {
+        const section = document.createElement("article");
+        section.className = "source";
+        const title = document.createElement("h3");
+        title.textContent = "Key prefixes";
+        const note = document.createElement("p");
+        note.className = "muted";
+        note.textContent = "Issues of these teams sync under another prefix, because a PlaneAI project uses their team key. Tasks already synced keep their keys.";
+        section.append(title, note);
+        for (const [team, prefix] of prefixes) {
+          const row = document.createElement("div");
+          row.className = "row";
+          const label = document.createElement("span");
+          label.className = "grow";
+          label.textContent = `${team}-N syncs as ${prefix}-N`;
+          row.append(label, button("Remove", () => {
+            const next = { ...settings.key_prefixes };
+            delete next[team];
+            void save({ ...settings, key_prefixes: next });
+          }, "danger"));
+          section.append(row);
+        }
+        card.append(section);
       }
       card.append(button("Add source", () => void save({
         ...settings,

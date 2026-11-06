@@ -211,19 +211,35 @@ test("Sync Now shows totals and every source error", async () => {
   assert.deepEqual([...root.querySelectorAll("ul.error li")].map((item) => item.textContent), ["ops: Linear GraphQL error: Invalid filter"]);
 });
 
-test("Sync Now names the issues a PlaneAI task's key kept from syncing", async () => {
-  const { root } = mountPreferences({
+test("Sync Now offers to sync a team whose keys a PlaneAI project uses under another prefix", async () => {
+  let syncs = 0;
+  const { root, saved } = mountPreferences({
     answers: {
-      "linear.syncNow": () => ({ created: 1, updated: 0, departed: 0, errors: 0, skipped: ["PLA-1", "PLA-2"] }),
+      "linear.syncNow": () => {
+        syncs += 1;
+        return syncs === 1
+          ? { created: 1, updated: 0, departed: 0, errors: 0, skipped: ["TRA-13", "TRA-12", "OPS-1"] }
+          : { created: 2, updated: 0, departed: 0, errors: 0 };
+      },
     },
   });
   await settle();
   buttonNamed(root, "Sync Now")!.click();
   await settle();
-  assert.deepEqual([...root.querySelectorAll(".muted, .warning")].map((line) => line.textContent).slice(-2), [
-    "1 created · 0 updated · 0 departed · 0 errors",
-    "Not synced, because a PlaneAI task already uses the key: PLA-1, PLA-2",
+  assert.deepEqual([...root.querySelectorAll(".prefix-offer .warning")].map((line) => line.textContent), [
+    "Not synced, because PlaneAI tasks already use their keys: TRA-13, TRA-12.",
+    "Not synced, because PlaneAI tasks already use their keys: OPS-1.",
   ]);
+  const prefix = root.querySelector<HTMLInputElement>("input[aria-label='PlaneAI key prefix for TRA issues']")!;
+  assert.equal(prefix.value, "LTRA");
+
+  buttonNamed(root, "Sync TRA issues under this prefix")!.click();
+  await settle();
+
+  assert.deepEqual(saved.at(-1).key_prefixes, { TRA: "LTRA" });
+  assert.equal(syncs, 2);
+  assert.equal(root.querySelector(".prefix-offer"), null);
+  assert.ok([...root.querySelectorAll("span")].some((span) => span.textContent === "TRA-N syncs as LTRA-N"));
 });
 
 test("a rejected save shows the sidecar's validation error", async () => {

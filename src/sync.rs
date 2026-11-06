@@ -1,6 +1,6 @@
 use crate::host::{Host, TaskFields};
 use crate::linear_api::fetch_issues;
-use crate::model::{LinearIssue, TaskKey, TaskStatus};
+use crate::model::{LinearIssue, TaskStatus};
 use crate::rpc::KEY_TAKEN;
 use crate::session::Linear;
 use crate::settings::{Settings, Source, SourceName};
@@ -91,7 +91,7 @@ pub async fn sync_now(
         let mut failure = None;
         for issue in &issues {
             seen.insert(issue.id.clone());
-            match apply_issue(&store, host, name, source, issue).await {
+            match apply_issue(&store, host, &settings, name, source, issue).await {
                 Ok(Applied::Created) => totals.created += 1,
                 Ok(Applied::Updated) => totals.updated += 1,
                 Ok(Applied::Unchanged) => {}
@@ -126,6 +126,7 @@ pub async fn sync_now(
 async fn apply_issue(
     store: &Store,
     host: Host<'_>,
+    settings: &Settings,
     source_name: &SourceName,
     source: &Source,
     issue: &LinearIssue,
@@ -138,7 +139,7 @@ async fn apply_issue(
     // A moved issue changes identifier; its task keeps the key it was created with.
     let key = link
         .clone()
-        .unwrap_or_else(|| TaskKey(issue.identifier.clone()));
+        .unwrap_or_else(|| settings.task_key(&issue.identifier));
     let existing = host
         .task(&key)
         .await
@@ -363,6 +364,38 @@ mod tests {
                 assert_eq!(plugin.host.tasks["ENG-1"]["title"], "Mine");
                 assert_eq!(plugin.host.tasks["ENG-2"]["title"], "Title ENG-2");
                 assert_eq!(plugin.host.tasks["OPS-9"]["title"], "Title OPS-9");
+            })
+            .await;
+        }
+
+        #[tokio::test]
+        async fn a_mapped_team_syncs_under_its_prefix_and_linked_tasks_keep_their_keys() {
+            local(async {
+                let fixture = Fixture::new().await;
+                fixture.connect("org-1");
+                fixture
+                    .filter_returns(filter("ENG"), vec![todo("uuid-1", "ENG-1"), todo("uuid-2", "ENG-2")])
+                    .await;
+                let mut host = one_source();
+                host.tasks.insert(
+                    "ENG-1".into(),
+                    json!({ "key": "ENG-1", "title": "Project task", "description": "", "status": "todo", "priority": 0, "tags": [] }),
+                );
+                let mut plugin = fixture.start(host);
+                assert_eq!(
+                    plugin.call("linear.syncNow", Value::Null).await.unwrap()["skipped"],
+                    json!(["ENG-1"])
+                );
+                plugin.host.settings["key_prefixes"] = json!({ "ENG": "LENG" });
+
+                assert_eq!(
+                    plugin.call("linear.syncNow", Value::Null).await.unwrap(),
+                    json!({ "created": 1, "updated": 0, "departed": 0, "errors": 0 })
+                );
+                assert_eq!(plugin.host.tasks["LENG-1"]["title"], "Title ENG-1");
+                assert_eq!(plugin.host.tasks["ENG-1"]["title"], "Project task");
+                assert_eq!(plugin.host.tasks["ENG-2"]["title"], "Title ENG-2");
+                assert!(!plugin.host.tasks.contains_key("LENG-2"));
             })
             .await;
         }
