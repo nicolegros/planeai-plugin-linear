@@ -90,7 +90,9 @@ For each source, in name order, the plugin fetches every issue in pages of 50 an
 It creates a task keyed by the issue's identifier (`ENG-123`) when none exists, and updates a linked task only when its title, description, status, priority or tags changed.
 Descriptions longer than 24 KiB are truncated with a note pointing to Linear.
 The task keeps the key it was created with when the issue moves to another team and changes identifier, so its children stay attached.
-A local task that already uses the key and was not created by the plugin is never overwritten: PlaneAI refuses the update and the sync reports it as an error for that source.
+A local task that already uses the key and was not created by the plugin is never overwritten.
+The sync skips that issue, keeps syncing the rest of its source, and lists the skipped keys under Sync Now.
+This happens when a Linear team key matches a PlaneAI project prefix, for an issue whose number the project already used.
 One failing source never stops the others; the totals list each error.
 
 An issue that leaves every source's results is a departure.

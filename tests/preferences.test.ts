@@ -208,6 +208,21 @@ test("Sync Now shows totals and every source error", async () => {
   assert.deepEqual([...root.querySelectorAll("ul.error li")].map((item) => item.textContent), ["ops: Linear GraphQL error: Invalid filter"]);
 });
 
+test("Sync Now names the issues a PlaneAI task's key kept from syncing", async () => {
+  const { root } = mountPreferences({
+    answers: {
+      "linear.syncNow": () => ({ created: 1, updated: 0, departed: 0, errors: 0, skipped: ["PLA-1", "PLA-2"] }),
+    },
+  });
+  await settle();
+  buttonNamed(root, "Sync Now")!.click();
+  await settle();
+  assert.deepEqual([...root.querySelectorAll(".muted, .warning")].map((line) => line.textContent).slice(-2), [
+    "1 created · 0 updated · 0 departed · 0 errors",
+    "Not synced, because a PlaneAI task already uses the key: PLA-1, PLA-2",
+  ]);
+});
+
 test("a rejected save shows the sidecar's validation error", async () => {
   const { root } = mountPreferences({
     answers: {

@@ -1,6 +1,7 @@
 use crate::host::{Host, TaskFields};
 use crate::linear_api::fetch_issues;
 use crate::model::{LinearIssue, TaskKey, TaskStatus};
+use crate::rpc::{KEY_TAKEN, NOT_GRANTED};
 use crate::session::Linear;
 use crate::settings::{Settings, Source, SourceName};
 use crate::store::Store;
@@ -16,6 +17,9 @@ pub struct SyncTotals {
     pub errors: usize,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub error_messages: Vec<String>,
+    /// Issues whose identifier a PlaneAI task this plugin does not own already holds.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub skipped: Vec<String>,
 }
 
 impl SyncTotals {
@@ -48,6 +52,8 @@ enum Applied {
     Created,
     Updated,
     Unchanged,
+    /// A PlaneAI task the plugin does not own holds the issue's key, so it is not mirrored.
+    Skipped,
 }
 
 /// Mirrors every source's issues into PlaneAI tasks; a failing source never blocks the others.
@@ -89,6 +95,7 @@ pub async fn sync_now(
                 Ok(Applied::Created) => totals.created += 1,
                 Ok(Applied::Updated) => totals.updated += 1,
                 Ok(Applied::Unchanged) => {}
+                Ok(Applied::Skipped) => totals.skipped.push(issue.identifier.clone()),
                 Err(error) => {
                     failure = Some(error);
                     break;
@@ -137,12 +144,11 @@ async fn apply_issue(
         .await
         .map_err(|error| format!("failed to read local task {key}: {error}"))?;
     let applied = match (existing, &link) {
-        (None, _) => {
-            host.create_task(&key, &fields)
-                .await
-                .map_err(|error| format!("failed to create task {key}: {error}"))?;
-            Applied::Created
-        }
+        (None, _) => match host.create_task(&key, &fields).await {
+            Ok(()) => Applied::Created,
+            Err(error) if error.code == KEY_TAKEN => return Ok(Applied::Skipped),
+            Err(error) => return Err(format!("failed to create task {key}: {error}")),
+        },
         (Some(task), Some(_)) if task.fields() == fields => Applied::Unchanged,
         (Some(_), Some(_)) => {
             host.update_task(&key, &fields)
@@ -151,15 +157,12 @@ async fn apply_issue(
             Applied::Updated
         }
         // PlaneAI updates only tasks this plugin owns, so an unlinked task updates only
-        // when an earlier sync created it and stopped before linking it.
-        (Some(_), None) => {
-            host.update_task(&key, &fields).await.map_err(|error| {
-                format!(
-                    "refusing to overwrite local task {key} without a Linear task link: {error}"
-                )
-            })?;
-            Applied::Updated
-        }
+        // when an earlier sync or install created it.
+        (Some(_), None) => match host.update_task(&key, &fields).await {
+            Ok(()) => Applied::Updated,
+            Err(error) if error.code == NOT_GRANTED => return Ok(Applied::Skipped),
+            Err(error) => return Err(format!("failed to update task {key}: {error}")),
+        },
     };
     store
         .upsert_issue(issue, status)
@@ -326,11 +329,13 @@ mod tests {
         }
 
         #[tokio::test]
-        async fn sync_refuses_to_overwrite_an_unlinked_local_task_and_keeps_other_sources() {
+        async fn sync_skips_an_issue_whose_key_a_planeai_task_holds_and_syncs_the_rest() {
             local(async {
                 let fixture = Fixture::new().await;
                 fixture.connect("org-1");
-                fixture.filter_returns(filter("ENG"), vec![todo("uuid-1", "ENG-1")]).await;
+                fixture
+                    .filter_returns(filter("ENG"), vec![todo("uuid-1", "ENG-1"), todo("uuid-2", "ENG-2")])
+                    .await;
                 fixture.filter_returns(filter("OPS"), vec![todo("uuid-9", "OPS-9")]).await;
                 let mut host = FakeHost::with_settings(json!({ "sources": {
                     "eng": filter_source("ENG"), "ops": filter_source("OPS")
@@ -344,11 +349,12 @@ mod tests {
                 assert_eq!(
                     plugin.call("linear.syncNow", Value::Null).await.unwrap(),
                     json!({
-                        "created": 1, "updated": 0, "departed": 0, "errors": 1,
-                        "error_messages": ["eng: refusing to overwrite local task ENG-1 without a Linear task link: not granted"]
+                        "created": 2, "updated": 0, "departed": 0, "errors": 0,
+                        "skipped": ["ENG-1"]
                     })
                 );
                 assert_eq!(plugin.host.tasks["ENG-1"]["title"], "Mine");
+                assert_eq!(plugin.host.tasks["ENG-2"]["title"], "Title ENG-2");
                 assert_eq!(plugin.host.tasks["OPS-9"]["title"], "Title OPS-9");
             })
             .await;

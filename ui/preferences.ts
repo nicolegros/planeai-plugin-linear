@@ -275,6 +275,12 @@ const entrypoint: Entrypoint = {
           }
           card.append(list);
         }
+        if (result.skipped?.length) {
+          const skipped = document.createElement("p");
+          skipped.className = "warning";
+          skipped.textContent = `Not synced, because a PlaneAI task already uses the key: ${result.skipped.join(", ")}`;
+          card.append(skipped);
+        }
       }
       const writeback = status?.last_writeback;
       if (writeback) {

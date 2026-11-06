@@ -74,7 +74,7 @@ impl FakeHost {
             "host.task.get" => Ok(json!({ "task": self.tasks.get(&key) })),
             "host.task.create" => {
                 if self.tasks.contains_key(&key) {
-                    return Err((-32602, format!("task {key} already exists")));
+                    return Err((-32005, format!("task {key} already exists")));
                 }
                 let mut task =
                     json!({ "status": "todo", "priority": 0, "tags": [], "description": "" });

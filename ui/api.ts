@@ -41,6 +41,7 @@ export type SyncTotals = {
   departed: number;
   errors: number;
   error_messages?: string[];
+  skipped?: string[];
 };
 
 export type SidebarItem = { issue_id: string; identifier: string; title: string; status: TaskStatus };
