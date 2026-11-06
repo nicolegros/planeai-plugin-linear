@@ -114,3 +114,72 @@ test("refreshes when plugin data or PlaneAI task data changes, and unsubscribes 
   dispose();
   assert.equal(host.listeners(), 0);
 });
+
+test("keyboard selection moves between issues and clears when it leaves the section", async () => {
+  const { host, root } = mountSidebar();
+  await settle();
+  const selection = () =>
+    [...root.querySelectorAll(".selected")].map((row) => row.getAttribute("aria-label"));
+
+  host.focusRows([["issue:uuid-1", true]]);
+  host.focusRows([
+    ["issue:uuid-1", false],
+    ["issue:uuid-2", true],
+  ]);
+  assert.deepEqual(selection(), ["ENG-2: Ship the plugin. Status: In review"]);
+  assert.equal(document.activeElement, rows(root)[1]);
+
+  host.focusRows([["issue:uuid-2", false]]);
+  assert.deepEqual(selection(), []);
+  assert.ok(!root.contains(document.activeElement));
+});
+
+test("a refresh with the same issues keeps the selection and the registration in-flight events target", async () => {
+  const { host, root } = mountSidebar();
+  await settle();
+  host.focusRows([["issue:uuid-2", true]]);
+  const registered = host.registrations.length;
+
+  host.dataChanged();
+  await settle();
+
+  assert.equal(host.registrations.length, registered);
+  assert.deepEqual(
+    [...root.querySelectorAll(".selected")].map((row) => row.getAttribute("aria-label")),
+    ["ENG-2: Ship the plugin. Status: In review"],
+  );
+  host.focusRows([["issue:uuid-2", false]]);
+  assert.equal(root.querySelector(".selected"), null);
+});
+
+test("a late unfocus for a row the selection already left keeps the newer selection", async () => {
+  const { host, root } = mountSidebar();
+  await settle();
+  host.focusRows([["issue:uuid-1", true]]);
+
+  host.focusRows([
+    ["issue:uuid-2", true],
+    ["issue:uuid-1", false],
+  ]);
+
+  assert.deepEqual(
+    [...root.querySelectorAll(".selected")].map((row) => row.getAttribute("aria-label")),
+    ["ENG-2: Ship the plugin. Status: In review"],
+  );
+});
+
+test("a refresh that removes the selected issue clears the selection", async () => {
+  const { host, root, setItems } = mountSidebar();
+  await settle();
+  host.focusRows([["issue:uuid-2", true]]);
+  setItems([items[0]]);
+
+  host.dataChanged();
+  await settle();
+
+  assert.equal(root.querySelector(".selected"), null);
+  assert.deepEqual(
+    rows(root).map((row) => row.getAttribute("aria-label")),
+    ["ENG-1: Sync the sidebar. Status: To do"],
+  );
+});

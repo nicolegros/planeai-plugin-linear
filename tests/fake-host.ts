@@ -14,6 +14,7 @@ export function fakeHost(
   const selected: string[] = [];
   const notifications: string[] = [];
   const registrations: SidebarRow[][] = [];
+  const unregistered = new Set<SidebarRow[]>();
   const toasts: Toast[] = [];
   const dismissed: string[] = [];
   const dataListeners = new Set<() => void>();
@@ -46,7 +47,7 @@ export function fakeHost(
       sidebar: {
         register: (rows) => {
           registrations.push(rows);
-          return () => {};
+          return () => unregistered.add(rows);
         },
         select: (rowId) => selected.push(rowId),
         handleKeydown: () => {},
@@ -94,6 +95,16 @@ export function fakeHost(
     registrations,
     toasts,
     dismissed,
+    /**
+     * Sends row focus changes the way PlaneAI does: one batch addressed to the registration the
+     * host last learned about, where the frame drops each event whose registration is gone.
+     */
+    focusRows: (events: Array<[rowId: string, active: boolean]>) => {
+      const known = registrations.at(-1)!;
+      for (const [rowId, active] of events) {
+        if (!unregistered.has(known)) known.find((row) => row.id === rowId)?.onFocus?.(active);
+      }
+    },
     changes: () => changes,
     methods: () => calls.map((call) => call.method),
     dataChanged: () => dataListeners.forEach((listener) => listener()),

@@ -55,8 +55,15 @@ const entrypoint: Entrypoint = {
     let selected = "";
     let disposed = false;
     let unregister = () => {};
+    let registeredRows = "";
+    const buttons = new Map<string, HTMLButtonElement>();
 
-    const assign = async (item: SidebarItem) => {
+    const HEADER_ROW = "header";
+    const rowIdOf = (item: SidebarItem) => `issue:${item.issue_id}`;
+    const itemOf = (rowId: string) => items.find((item) => rowIdOf(item) === rowId);
+    const assign = async (rowId: string) => {
+      const item = itemOf(rowId);
+      if (!item) return;
       try {
         await api.selectIssue(item.issue_id);
         host.navigation.open(PLUGIN_ID, "assign");
@@ -64,27 +71,61 @@ const entrypoint: Entrypoint = {
         host.data.notify(`Could not open ${item.identifier}: ${errorMessage(error)}`);
       }
     };
-    const focusRow = (rowId: string) => {
+    /** Moves the selection ring, and keyboard focus with it, without touching the registration. */
+    const select = (rowId: string) => {
       selected = rowId;
-      render(rowId);
+      for (const [id, button] of buttons) button.classList.toggle("selected", id === rowId);
+      const button = buttons.get(rowId);
+      if (button) button.focus();
+      else if (section.contains(document.activeElement))
+        (document.activeElement as HTMLElement).blur();
     };
-    const blur = (active: boolean, rowId: string) => {
-      if (active) {
-        if (selected !== rowId) focusRow(rowId);
-      } else if (selected) {
-        selected = "";
-        render();
-      }
-    };
-    const toggle = () => {
-      collapsed = !collapsed;
-      focusRow("header");
+    const toggle = (next = !collapsed) => {
+      collapsed = next;
+      render();
+      select(HEADER_ROW);
     };
 
-    const render = (focusRowId: string | null = null) => {
+    // PlaneAI addresses row events to the registration it last saw, so re-registering on every
+    // render would drop the focus changes in flight; register again only when the rows change.
+    const register = () => {
+      const ids = [HEADER_ROW, ...(collapsed ? [] : items.map(rowIdOf))];
+      if (ids.join("\n") === registeredRows) return;
+      registeredRows = ids.join("\n");
       unregister();
+      unregister = host.sidebar.register(
+        ids.map((id): SidebarRow =>
+          id === HEADER_ROW
+            ? {
+                id,
+                onSelect: () => toggle(),
+                onCollapse: () => toggle(true),
+                onExpand: () => toggle(false),
+                onFocus: (active) => focusChanged(id, active),
+              }
+            : {
+                id,
+                onSelect: () => {
+                  select(id);
+                  void assign(id);
+                },
+                onCollapse: () => select(HEADER_ROW),
+                onFocus: (active) => focusChanged(id, active),
+              },
+        ),
+      );
+    };
+    const focusChanged = (rowId: string, active: boolean) => {
+      if (active) select(rowId);
+      // A late blur for a row the selection already left must not clear the newer one.
+      else if (selected === rowId) select("");
+    };
+
+    const render = () => {
+      const hadFocus = section.contains(document.activeElement);
+      buttons.clear();
       const header = document.createElement("button");
-      header.className = `section-header${selected === "header" ? " selected" : ""}`;
+      header.className = "section-header";
       header.setAttribute("aria-expanded", String(!collapsed));
       header.setAttribute("aria-controls", "linear-sidebar-issues");
       header.textContent = "Linear ";
@@ -93,37 +134,20 @@ const entrypoint: Entrypoint = {
       count.textContent = String(items.length);
       header.append(count, chevron(collapsed));
       header.onclick = () => {
-        host.sidebar.select("header");
+        host.sidebar.select(HEADER_ROW);
         toggle();
       };
       header.onkeydown = (event) => host.sidebar.handleKeydown(event);
+      buttons.set(HEADER_ROW, header);
       const region = document.createElement("div");
       region.id = "linear-sidebar-issues";
       region.setAttribute("role", "group");
       region.setAttribute("aria-label", "Linear issues");
-      section.replaceChildren(header, region);
-      if (focusRowId === "header") header.focus();
-
-      const rows: SidebarRow[] = [
-        {
-          id: "header",
-          onSelect: toggle,
-          onCollapse: () => {
-            collapsed = true;
-            focusRow("header");
-          },
-          onExpand: () => {
-            collapsed = false;
-            focusRow("header");
-          },
-          onFocus: (active) => blur(active, "header"),
-        },
-      ];
       if (!collapsed) {
         for (const item of items) {
-          const rowId = `issue:${item.issue_id}`;
+          const rowId = rowIdOf(item);
           const row = document.createElement("button");
-          row.className = `issue${selected === rowId ? " selected" : ""}`;
+          row.className = "issue";
           const dot = document.createElement("span");
           dot.className = `dot ${dotClass(item)}`.trim();
           const key = document.createElement("span");
@@ -139,8 +163,8 @@ const entrypoint: Entrypoint = {
           );
           row.onclick = () => {
             host.sidebar.select(rowId);
-            focusRow(rowId);
-            void assign(item);
+            select(rowId);
+            void assign(rowId);
           };
           row.onkeydown = (event) => {
             if (event.key === "Enter" || event.key === " ") {
@@ -152,19 +176,15 @@ const entrypoint: Entrypoint = {
             host.sidebar.handleKeydown(event);
           };
           region.append(row);
-          if (focusRowId === rowId) row.focus();
-          rows.push({
-            id: rowId,
-            onSelect: () => {
-              focusRow(rowId);
-              void assign(item);
-            },
-            onCollapse: () => focusRow("header"),
-            onFocus: (active) => blur(active, rowId),
-          });
+          buttons.set(rowId, row);
         }
       }
-      unregister = host.sidebar.register(rows);
+      section.replaceChildren(header, region);
+      // A refresh keeps the selection, and keyboard focus when the section had it.
+      if (!buttons.has(selected)) selected = "";
+      buttons.get(selected)?.classList.add("selected");
+      if (hadFocus) buttons.get(selected)?.focus();
+      register();
     };
 
     let running = false;
