@@ -1,0 +1,2 @@
+# oxfmt and rustfmt expect LF, so Windows checkouts must not convert line endings.
+* text=auto eol=lf
