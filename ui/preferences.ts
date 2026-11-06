@@ -56,7 +56,11 @@ function field(label: string, control: HTMLElement): HTMLElement {
   return wrap;
 }
 
-function textInput(value: string, changed?: (value: string) => void, options: { placeholder?: string; ariaLabel?: string; type?: string } = {}) {
+function textInput(
+  value: string,
+  changed?: (value: string) => void,
+  options: { placeholder?: string; ariaLabel?: string; type?: string } = {},
+) {
   const input = document.createElement("input");
   input.type = options.type ?? "text";
   input.value = value;
@@ -211,7 +215,13 @@ const entrypoint: Entrypoint = {
           result = await api.syncNow();
           await host.data.changed();
         } catch (error) {
-          result = { created: 0, updated: 0, departed: 0, errors: 1, error_messages: [errorMessage(error)] };
+          result = {
+            created: 0,
+            updated: 0,
+            departed: 0,
+            errors: 1,
+            error_messages: [errorMessage(error)],
+          };
         } finally {
           syncing = false;
         }
@@ -225,18 +235,27 @@ const entrypoint: Entrypoint = {
       const message = document.createElement("p");
       message.className = "warning";
       const mapped = prefixes[team];
-      const keys = identifiers.map((identifier) => (mapped ? `${identifier} as ${mapped}${identifier.slice(team.length)}` : identifier));
+      const keys = identifiers.map((identifier) =>
+        mapped ? `${identifier} as ${mapped}${identifier.slice(team.length)}` : identifier,
+      );
       message.textContent = `Not synced, because PlaneAI tasks already use their keys: ${keys.join(", ")}.`;
-      const input = textInput(suggestedPrefix(team, prefixes), undefined, { ariaLabel: `PlaneAI key prefix for ${team} issues` });
+      const input = textInput(suggestedPrefix(team, prefixes), undefined, {
+        ariaLabel: `PlaneAI key prefix for ${team} issues`,
+      });
       input.addEventListener("input", () => {
         input.value = input.value.toUpperCase();
       });
-      const apply = button(`Sync ${team} issues under this prefix`, () => {
-        const prefix = input.value.trim();
-        void (async () => {
-          if (await save({ ...settings, key_prefixes: { ...prefixes, [team]: prefix } })) await sync();
-        })();
-      }, "primary");
+      const apply = button(
+        `Sync ${team} issues under this prefix`,
+        () => {
+          const prefix = input.value.trim();
+          void (async () => {
+            if (await save({ ...settings, key_prefixes: { ...prefixes, [team]: prefix } }))
+              await sync();
+          })();
+        },
+        "primary",
+      );
       const row = document.createElement("div");
       row.className = "row";
       const prefixField = field(`Key prefix for ${team}`, input);
@@ -262,17 +281,23 @@ const entrypoint: Entrypoint = {
         const syncButton = button(syncing ? "Syncing…" : "Sync Now", () => void sync(), "primary");
         syncButton.disabled = syncing;
         actions.append(
-          button("Disconnect", () => void run(async () => {
-            await api.disconnect();
-            result = null;
-            await host.data.changed();
-            await refresh();
-          })),
+          button(
+            "Disconnect",
+            () =>
+              void run(async () => {
+                await api.disconnect();
+                result = null;
+                await host.data.changed();
+                await refresh();
+              }),
+          ),
           syncButton,
         );
         card.append(actions);
       } else {
-        summary.textContent = status?.authorizing ? "Waiting for Linear in your browser…" : "Not connected";
+        summary.textContent = status?.authorizing
+          ? "Waiting for Linear in your browser…"
+          : "Not connected";
         const key = textInput(apiKey, (value) => (apiKey = value), {
           type: "password",
           placeholder: "lin_api_…",
@@ -289,18 +314,28 @@ const entrypoint: Entrypoint = {
         keyRow.append(field("Personal API key", key), connectKey);
         const hint = document.createElement("p");
         hint.className = "muted";
-        hint.textContent = "Create one in Linear under Settings, Security & access, Personal API keys.";
+        hint.textContent =
+          "Create one in Linear under Settings, Security & access, Personal API keys.";
         card.append(keyRow, hint);
         if (status?.oauth_available) {
-          const oauth = button(status.authorizing ? "Authorizing…" : "Connect with Linear", () => void connectOAuth());
+          const oauth = button(
+            status.authorizing ? "Authorizing…" : "Connect with Linear",
+            () => void connectOAuth(),
+          );
           oauth.disabled = connecting || status.authorizing;
           actions.append(oauth);
           if (status.authorizing) {
-            actions.append(button("Cancel authorization", () => void run(async () => {
-              await api.connectCancel(attempt);
-              attempt = null;
-              await refresh();
-            })));
+            actions.append(
+              button(
+                "Cancel authorization",
+                () =>
+                  void run(async () => {
+                    await api.connectCancel(attempt);
+                    attempt = null;
+                    await refresh();
+                  }),
+              ),
+            );
           }
           card.append(actions);
         }
@@ -325,7 +360,8 @@ const entrypoint: Entrypoint = {
           const team = teamOf(identifier);
           skippedByTeam.set(team, [...(skippedByTeam.get(team) ?? []), identifier]);
         }
-        for (const [team, identifiers] of skippedByTeam) card.append(prefixOffer(team, identifiers));
+        for (const [team, identifiers] of skippedByTeam)
+          card.append(prefixOffer(team, identifiers));
       }
       const writeback = status?.last_writeback;
       if (writeback) {
@@ -350,7 +386,10 @@ const entrypoint: Entrypoint = {
       wrap.className = "field";
       const select = document.createElement("select");
       select.setAttribute("aria-label", `Query kind for ${name}`);
-      select.append(new Option("Custom view", "view", false, kind === "view"), new Option("Issue filter (JSON)", "filter", false, kind === "filter"));
+      select.append(
+        new Option("Custom view", "view", false, kind === "view"),
+        new Option("Issue filter (JSON)", "filter", false, kind === "filter"),
+      );
       select.onchange = () => {
         const next = select.value as "view" | "filter";
         if (next === source.query.kind) delete kindDrafts[name];
@@ -365,15 +404,25 @@ const entrypoint: Entrypoint = {
       wrap.append(field("Query", select));
       if (kind === "view") {
         const view = source.query.kind === "view" ? source.query.view : "";
-        wrap.append(field("Custom view URL", textInput(view, (value) => {
-          if (!value.trim()) return;
-          delete kindDrafts[name];
-          void saveSource(name, { ...source, query: { kind: "view", view: value.trim() } });
-        }, { placeholder: "https://linear.app/acme/view/my-issues-0a1b2c3d4e5f" })));
+        wrap.append(
+          field(
+            "Custom view URL",
+            textInput(
+              view,
+              (value) => {
+                if (!value.trim()) return;
+                delete kindDrafts[name];
+                void saveSource(name, { ...source, query: { kind: "view", view: value.trim() } });
+              },
+              { placeholder: "https://linear.app/acme/view/my-issues-0a1b2c3d4e5f" },
+            ),
+          ),
+        );
       } else {
         const filter = document.createElement("textarea");
         filter.spellcheck = false;
-        filter.value = source.query.kind === "filter" ? JSON.stringify(source.query.filter, null, 2) : "";
+        filter.value =
+          source.query.kind === "filter" ? JSON.stringify(source.query.filter, null, 2) : "";
         filter.addEventListener("change", () => {
           let parsed: unknown;
           try {
@@ -389,7 +438,10 @@ const entrypoint: Entrypoint = {
             return;
           }
           delete queryErrors[name];
-          void saveSource(name, { ...source, query: { kind: "filter", filter: parsed as Record<string, unknown> } });
+          void saveSource(name, {
+            ...source,
+            query: { kind: "filter", filter: parsed as Record<string, unknown> },
+          });
         });
         wrap.append(field("IssueFilter JSON", filter));
       }
@@ -411,20 +463,26 @@ const entrypoint: Entrypoint = {
       label.className = "label";
       label.textContent = "Status mapping (Linear state → PlaneAI status)";
       wrap.append(label);
-      const saveMap = (status_map: Record<string, TaskStatus>) => void saveSource(name, { ...source, status_map });
+      const saveMap = (status_map: Record<string, TaskStatus>) =>
+        void saveSource(name, { ...source, status_map });
       for (const [state, mapped] of Object.entries(map)) {
         const row = document.createElement("div");
         row.className = "row";
-        const stateInput = textInput(state, (value) => {
-          const next = { ...map };
-          delete next[state];
-          if (value.trim()) next[value.trim()] = mapped;
-          saveMap(next);
-        }, { ariaLabel: "Linear state" });
+        const stateInput = textInput(
+          state,
+          (value) => {
+            const next = { ...map };
+            delete next[state];
+            if (value.trim()) next[value.trim()] = mapped;
+            saveMap(next);
+          },
+          { ariaLabel: "Linear state" },
+        );
         stateInput.classList.add("grow");
         const select = document.createElement("select");
         select.setAttribute("aria-label", `PlaneAI status for ${state}`);
-        for (const value of TASK_STATUSES) select.append(new Option(statusLabel(value), value, false, value === mapped));
+        for (const value of TASK_STATUSES)
+          select.append(new Option(statusLabel(value), value, false, value === mapped));
         select.onchange = () => saveMap({ ...map, [state]: select.value as TaskStatus });
         const remove = button("×", () => {
           const next = { ...map };
@@ -435,14 +493,27 @@ const entrypoint: Entrypoint = {
         row.append(stateInput, select, remove);
         wrap.append(row);
       }
-      wrap.append(button("Add status mapping", () => saveMap({ ...map, [nextName(map, "Linear state", " ")]: "todo" }), "add"));
+      wrap.append(
+        button(
+          "Add status mapping",
+          () => saveMap({ ...map, [nextName(map, "Linear state", " ")]: "todo" }),
+          "add",
+        ),
+      );
       return wrap;
     };
 
     const writebackEditor = (name: string, source: Source) => {
-      const current: Writeback = source.writeback ?? { on_start: null, on_complete: null, comment: false };
+      const current: Writeback = source.writeback ?? {
+        on_start: null,
+        on_complete: null,
+        comment: false,
+      };
       const update = (patch: Partial<Writeback>) =>
-        void saveSource(name, { ...source, writeback: normalizedWriteback({ ...current, ...patch }) });
+        void saveSource(name, {
+          ...source,
+          writeback: normalizedWriteback({ ...current, ...patch }),
+        });
       const wrap = document.createElement("div");
       wrap.className = "mapping";
       const label = document.createElement("span");
@@ -451,8 +522,20 @@ const entrypoint: Entrypoint = {
       const row = document.createElement("div");
       row.className = "row";
       row.append(
-        field("When work starts, move to", textInput(current.on_start ?? "", (value) => update({ on_start: value.trim() || null }), { placeholder: "In Progress" })),
-        field("When the task is done, move to", textInput(current.on_complete ?? "", (value) => update({ on_complete: value.trim() || null }), { placeholder: "Done" })),
+        field(
+          "When work starts, move to",
+          textInput(current.on_start ?? "", (value) => update({ on_start: value.trim() || null }), {
+            placeholder: "In Progress",
+          }),
+        ),
+        field(
+          "When the task is done, move to",
+          textInput(
+            current.on_complete ?? "",
+            (value) => update({ on_complete: value.trim() || null }),
+            { placeholder: "Done" },
+          ),
+        ),
       );
       const check = document.createElement("label");
       check.className = "check";
@@ -471,14 +554,19 @@ const entrypoint: Entrypoint = {
       const heading = document.createElement("h2");
       heading.textContent = "Configuration";
       card.append(heading);
-      const interval = textInput(String(Math.round(settings.sync_interval_ms / 1000)), (value) => {
-        const seconds = Number(value);
-        if (Number.isInteger(seconds) && seconds >= 10) void save({ ...settings, sync_interval_ms: seconds * 1000 });
-        else {
-          lastError = "Sync interval must be a whole number of seconds, at least 10.";
-          render();
-        }
-      }, { type: "number" });
+      const interval = textInput(
+        String(Math.round(settings.sync_interval_ms / 1000)),
+        (value) => {
+          const seconds = Number(value);
+          if (Number.isInteger(seconds) && seconds >= 10)
+            void save({ ...settings, sync_interval_ms: seconds * 1000 });
+          else {
+            lastError = "Sync interval must be a whole number of seconds, at least 10.";
+            render();
+          }
+        },
+        { type: "number" },
+      );
       interval.min = "10";
       card.append(field("Sync interval (seconds)", interval));
       const sources = settings.sources;
@@ -488,26 +576,56 @@ const entrypoint: Entrypoint = {
         const head = document.createElement("div");
         head.className = "row";
         head.append(
-          field("Source name", textInput(name, (value) => {
-            const renamed = value.trim();
-            if (!renamed || renamed === name || renamed in sources) return;
-            const next = Object.fromEntries(Object.entries(sources).map(([key, body]) => [key === name ? renamed : key, body]));
-            void save({ ...settings, sources: next });
-          })),
-          button("Remove", () => {
-            const next = { ...sources };
-            delete next[name];
-            void save({ ...settings, sources: next });
-          }, "danger"),
+          field(
+            "Source name",
+            textInput(name, (value) => {
+              const renamed = value.trim();
+              if (!renamed || renamed === name || renamed in sources) return;
+              const next = Object.fromEntries(
+                Object.entries(sources).map(([key, body]) => [key === name ? renamed : key, body]),
+              );
+              void save({ ...settings, sources: next });
+            }),
+          ),
+          button(
+            "Remove",
+            () => {
+              const next = { ...sources };
+              delete next[name];
+              void save({ ...settings, sources: next });
+            },
+            "danger",
+          ),
         );
-        article.append(head, queryEditor(name, source), statusMapEditor(name, source), writebackEditor(name, source));
+        article.append(
+          head,
+          queryEditor(name, source),
+          statusMapEditor(name, source),
+          writebackEditor(name, source),
+        );
         card.append(article);
       }
-      card.append(button("Add source", () => void save({
-        ...settings,
-        sources: { ...sources, [nextName(sources, "source", "-")]: { query: { kind: "filter", filter: DEFAULT_FILTER }, status_map: {}, writeback: null } },
-      }), "add"));
-      const prefixes = Object.entries(settings.key_prefixes ?? {}).sort(([a], [b]) => a.localeCompare(b));
+      card.append(
+        button(
+          "Add source",
+          () =>
+            void save({
+              ...settings,
+              sources: {
+                ...sources,
+                [nextName(sources, "source", "-")]: {
+                  query: { kind: "filter", filter: DEFAULT_FILTER },
+                  status_map: {},
+                  writeback: null,
+                },
+              },
+            }),
+          "add",
+        ),
+      );
+      const prefixes = Object.entries(settings.key_prefixes ?? {}).sort(([a], [b]) =>
+        a.localeCompare(b),
+      );
       if (prefixes.length) {
         const section = document.createElement("article");
         section.className = "key-prefixes";
@@ -515,7 +633,8 @@ const entrypoint: Entrypoint = {
         title.textContent = "Key prefixes";
         const note = document.createElement("p");
         note.className = "muted";
-        note.textContent = "Issues of these teams sync under another prefix, because a PlaneAI project uses their team key. Tasks already synced keep their keys.";
+        note.textContent =
+          "Issues of these teams sync under another prefix, because a PlaneAI project uses their team key. Tasks already synced keep their keys.";
         section.append(title, note);
         for (const [team, prefix] of prefixes) {
           const row = document.createElement("div");
@@ -523,11 +642,18 @@ const entrypoint: Entrypoint = {
           const label = document.createElement("span");
           label.className = "grow";
           label.textContent = `${team}-N syncs as ${prefix}-N`;
-          row.append(label, button("Remove", () => {
-            const next = { ...settings.key_prefixes };
-            delete next[team];
-            void save({ ...settings, key_prefixes: next });
-          }, "danger"));
+          row.append(
+            label,
+            button(
+              "Remove",
+              () => {
+                const next = { ...settings.key_prefixes };
+                delete next[team];
+                void save({ ...settings, key_prefixes: next });
+              },
+              "danger",
+            ),
+          );
           section.append(row);
         }
         card.append(section);

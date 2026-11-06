@@ -141,7 +141,8 @@ You need Rust (stable), Node 22 or later, and pnpm 10.28.2.
 
 ```bash
 pnpm install --frozen-lockfile
-make test            # rustfmt, clippy, Rust tests, UI tests in jsdom, manifest and release contract tests
+make test            # rustfmt, clippy, oxfmt, oxlint, Rust tests, UI tests in jsdom, manifest and release contract tests
+make fmt             # format Rust and TypeScript
 make package         # stage dist/planeai-plugin-linear for this machine
 make verify-package  # stage, then check the binary's handshake against the manifest
 ```

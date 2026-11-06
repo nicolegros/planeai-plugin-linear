@@ -36,7 +36,8 @@ export function createCombobox(options: ComboboxOptions): HTMLElement {
   let open = false;
   let query = "";
   let highlighted = 0;
-  const selectedLabel = () => options.items.find((item) => item.value === options.value)?.label ?? "";
+  const selectedLabel = () =>
+    options.items.find((item) => item.value === options.value)?.label ?? "";
   const matches = () => {
     const normalized = query.trim().toLowerCase();
     return normalized
@@ -122,7 +123,9 @@ export function createCombobox(options: ComboboxOptions): HTMLElement {
           ? Math.min(highlighted + 1, Math.max(found.length - 1, 0))
           : Math.max(highlighted - 1, 0);
       setOpen(true);
-      list.querySelector<HTMLElement>("[data-highlighted='true']")?.scrollIntoView?.({ block: "nearest" });
+      list
+        .querySelector<HTMLElement>("[data-highlighted='true']")
+        ?.scrollIntoView?.({ block: "nearest" });
     } else if (event.key === "Enter" && open && found[highlighted]) {
       event.preventDefault();
       event.stopPropagation();

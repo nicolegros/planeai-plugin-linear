@@ -72,7 +72,9 @@ const entrypoint: Entrypoint = {
         const message = document.createElement("p");
         message.className = loading ? "muted" : "error";
         if (!loading) message.setAttribute("role", "alert");
-        message.textContent = loading ? "Loading Linear issue…" : error || "This Linear issue is no longer available.";
+        message.textContent = loading
+          ? "Loading Linear issue…"
+          : error || "This Linear issue is no longer available.";
         form.append(message);
         body.replaceChildren(form);
         return;

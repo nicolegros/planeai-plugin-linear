@@ -18,7 +18,11 @@ beforeEach(() => {
   installDom();
 });
 
-function mountAssign({ projects = [planeai, archive], createChild = (_params: unknown) => ({ task: { key: "PLA-9" } }), current = () => issue } = {}) {
+function mountAssign({
+  projects = [planeai, archive],
+  createChild = (_params: unknown) => ({ task: { key: "PLA-9" } }),
+  current = () => issue,
+} = {}) {
   let projectList = projects;
   const host = fakeHost(
     { "linear.assignment.current": current },
@@ -31,7 +35,8 @@ function mountAssign({ projects = [planeai, archive], createChild = (_params: un
   return { host, ...mounted, setProjects: (next: typeof projects) => (projectList = next) };
 }
 
-const picker = (root: Element) => root.querySelector<HTMLInputElement>("input[aria-label='PlaneAI project']")!;
+const picker = (root: Element) =>
+  root.querySelector<HTMLInputElement>("input[aria-label='PlaneAI project']")!;
 const assignButton = (root: Element) => root.querySelector<HTMLButtonElement>("button.primary")!;
 
 async function choose(root: Element, name: string) {
@@ -39,7 +44,9 @@ async function choose(root: Element, name: string) {
   input.dispatchEvent(new FocusEvent("focus"));
   input.value = name.slice(0, 3);
   input.dispatchEvent(new Event("input"));
-  const option = [...root.querySelectorAll<HTMLButtonElement>("[role='option']")].find((candidate) => candidate.textContent === name)!;
+  const option = [...root.querySelectorAll<HTMLButtonElement>("[role='option']")].find(
+    (candidate) => candidate.textContent === name,
+  )!;
   option.click();
   await settle();
 }
@@ -51,7 +58,10 @@ test("previews the selected issue and keeps Assign disabled until a project is c
   assert.equal(root.querySelector(".preview h3")?.textContent, "Ship the plugin");
   assert.equal(root.querySelector(".preview p")?.textContent, "Copy the GitHub plugin layout.");
   assert.equal(assignButton(root).disabled, true);
-  assert.equal(root.querySelector("[data-keyboard-mode]")?.textContent, "NORMALpress a key to focus field");
+  assert.equal(
+    root.querySelector("[data-keyboard-mode]")?.textContent,
+    "NORMALpress a key to focus field",
+  );
 });
 
 test("Mod+Enter creates a child of the issue's task in the chosen project, then closes", async () => {
@@ -62,15 +72,19 @@ test("Mod+Enter creates a child of the issue's task in the chosen project, then 
   assert.equal(assignButton(root).disabled, false);
   press("Enter", root.querySelector("form")!, { metaKey: true });
   await settle();
-  const created = host.rpcCalls.find((call) => call.method === "tasks.createChild")!.params as Record<string, string>;
+  const created = host.rpcCalls.find((call) => call.method === "tasks.createChild")!
+    .params as Record<string, string>;
   assert.match(created.operation_id, /^linear-assign:uuid-1:[0-9a-f-]{36}$/);
-  assert.deepEqual({ ...created, operation_id: "" }, {
-    project_path: "/code/archive",
-    parent_key: "ENG-1",
-    title: "Ship the plugin",
-    description: "Copy the GitHub plugin layout.",
-    operation_id: "",
-  });
+  assert.deepEqual(
+    { ...created, operation_id: "" },
+    {
+      project_path: "/code/archive",
+      parent_key: "ENG-1",
+      title: "Ship the plugin",
+      description: "Copy the GitHub plugin layout.",
+      operation_id: "",
+    },
+  );
   assert.equal(host.changes(), 1);
   assert.deepEqual(host.navigation, ["close"]);
 });
@@ -121,9 +135,16 @@ test("P focuses the project picker in insert mode; Escape returns to normal mode
   assert.equal(document.activeElement, picker(root));
   assert.equal(root.querySelector("[data-keyboard-mode]")?.textContent, "INSERTesc → normal mode");
   press("Escape", picker(root));
-  assert.equal(root.querySelector("[data-keyboard-mode]")?.textContent, "INSERTesc → normal mode", "the first Escape closes the open list");
+  assert.equal(
+    root.querySelector("[data-keyboard-mode]")?.textContent,
+    "INSERTesc → normal mode",
+    "the first Escape closes the open list",
+  );
   press("Escape", picker(root));
-  assert.equal(root.querySelector("[data-keyboard-mode]")?.textContent, "NORMALpress a key to focus field");
+  assert.equal(
+    root.querySelector("[data-keyboard-mode]")?.textContent,
+    "NORMALpress a key to focus field",
+  );
   assert.deepEqual(host.navigation, []);
   press("Escape", wrapper);
   assert.deepEqual(host.navigation, ["close"]);
@@ -132,7 +153,10 @@ test("P focuses the project picker in insert mode; Escape returns to normal mode
 test("without projects it offers to create one", async () => {
   const { root } = mountAssign({ projects: [] });
   await settle();
-  assert.equal(root.querySelector(".muted")?.textContent, "No PlaneAI projects available. Press N to create one.");
+  assert.equal(
+    root.querySelector(".muted")?.textContent,
+    "No PlaneAI projects available. Press N to create one.",
+  );
   assert.equal(picker(root), null);
 });
 
@@ -143,5 +167,8 @@ test("an issue that is no longer selectable shows the sidecar's reason", async (
     },
   });
   await settle();
-  assert.equal(root.querySelector("[role='alert']")?.textContent, "this Linear issue is no longer available");
+  assert.equal(
+    root.querySelector("[role='alert']")?.textContent,
+    "this Linear issue is no longer available",
+  );
 });

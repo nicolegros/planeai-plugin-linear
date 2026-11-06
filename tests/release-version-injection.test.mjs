@@ -22,8 +22,14 @@ test("injects the release version when Cargo.lock uses CRLF line endings", (t) =
 
   execFileSync(process.execPath, [injector, "v1.2.3"], { cwd: fixture });
 
-  assert.equal(JSON.parse(fs.readFileSync(path.join(fixture, "package.json"), "utf8")).version, "1.2.3");
-  assert.equal(JSON.parse(fs.readFileSync(path.join(fixture, "planeai-plugin.json"), "utf8")).version, "1.2.3");
+  assert.equal(
+    JSON.parse(fs.readFileSync(path.join(fixture, "package.json"), "utf8")).version,
+    "1.2.3",
+  );
+  assert.equal(
+    JSON.parse(fs.readFileSync(path.join(fixture, "planeai-plugin.json"), "utf8")).version,
+    "1.2.3",
+  );
   assert.match(fs.readFileSync(path.join(fixture, "Cargo.toml"), "utf8"), /version = "1\.2\.3"/);
   assert.match(
     fs.readFileSync(path.join(fixture, "Cargo.lock"), "utf8"),

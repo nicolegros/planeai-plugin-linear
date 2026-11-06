@@ -133,7 +133,10 @@ const entrypoint: Entrypoint = {
           title.className = "title";
           title.textContent = item.title;
           row.append(dot, key, title);
-          row.setAttribute("aria-label", `${item.identifier}: ${item.title}. Status: ${statusLabel(item.status)}`);
+          row.setAttribute(
+            "aria-label",
+            `${item.identifier}: ${item.title}. Status: ${statusLabel(item.status)}`,
+          );
           row.onclick = () => {
             host.sidebar.select(rowId);
             focusRow(rowId);

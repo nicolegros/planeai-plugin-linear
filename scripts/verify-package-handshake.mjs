@@ -83,7 +83,9 @@ child.stdout.on("data", (chunk) => {
     if (response.error) throw new Error(`plugin.handshake returned ${response.error.message}`);
     for (const [field, value] of Object.entries(expected)) {
       if (response.result?.[field] !== value) {
-        throw new Error(`plugin.handshake ${field} (${response.result?.[field]}) does not match manifest (${value})`);
+        throw new Error(
+          `plugin.handshake ${field} (${response.result?.[field]}) does not match manifest (${value})`,
+        );
       }
     }
     finish();
@@ -93,7 +95,9 @@ child.stdout.on("data", (chunk) => {
 });
 child.on("exit", (code, signal) => {
   if (!settled) {
-    finish(new Error(`plugin exited before plugin.handshake completed (code ${code}, signal ${signal})`));
+    finish(
+      new Error(`plugin exited before plugin.handshake completed (code ${code}, signal ${signal})`),
+    );
   }
 });
 child.stdin.write(`${JSON.stringify(request)}\n`);

@@ -3,7 +3,8 @@ export type FormMode = "normal" | "insert";
 type Binding = { key: string; run(): void };
 
 const isEditable = (target: EventTarget | null) =>
-  target instanceof HTMLElement && target.matches("input, textarea, select, [contenteditable='true']");
+  target instanceof HTMLElement &&
+  target.matches("input, textarea, select, [contenteditable='true']");
 
 /**
  * PlaneAI's form keyboard model: in normal mode a letter acts (focus a field, run an action)
@@ -21,7 +22,9 @@ export function attachFormKeyboard(options: {
     mode = next;
     options.onModeChange(mode);
   };
-  options.wrapper.addEventListener("focusin", (event) => setMode(isEditable(event.target) ? "insert" : "normal"));
+  options.wrapper.addEventListener("focusin", (event) =>
+    setMode(isEditable(event.target) ? "insert" : "normal"),
+  );
   options.wrapper.addEventListener("keydown", (event) => {
     if (event.metaKey || event.ctrlKey || event.altKey || event.key === "Tab") return;
     if (mode === "insert") {

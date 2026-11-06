@@ -3,7 +3,11 @@ import type { LinearContext, SidebarRow, Toast } from "../ui/host.js";
 type Answer = (params: any) => unknown;
 
 /** A recording stand-in for PlaneAI's local frame bridge; sidecar and host RPC answers are scripted. */
-export function fakeHost(answers: Record<string, Answer> = {}, rpcAnswers: Record<string, Answer> = {}, { v7 = true } = {}) {
+export function fakeHost(
+  answers: Record<string, Answer> = {},
+  rpcAnswers: Record<string, Answer> = {},
+  { v7 = true } = {},
+) {
   const calls: Array<{ method: string; params: unknown }> = [];
   const rpcCalls: Array<{ method: string; params: unknown }> = [];
   const navigation: string[] = [];
@@ -15,7 +19,8 @@ export function fakeHost(answers: Record<string, Answer> = {}, rpcAnswers: Recor
   const dataListeners = new Set<() => void>();
   const taskListeners = new Set<() => void>();
   let changes = 0;
-  let projectForm: () => Promise<{ id: string; name: string; path: string } | null> = async () => null;
+  let projectForm: () => Promise<{ id: string; name: string; path: string } | null> = async () =>
+    null;
   const respond = async (table: Record<string, Answer>, method: string, params: unknown) => {
     const answer = table[method];
     if (!answer) throw new Error(`unexpected call ${method}`);
@@ -100,7 +105,10 @@ export function fakeHost(answers: Record<string, Answer> = {}, rpcAnswers: Recor
   };
 }
 
-export function mountInto(entrypoint: { mount(root: HTMLElement, context: LinearContext): () => void }, context: LinearContext) {
+export function mountInto(
+  entrypoint: { mount(root: HTMLElement, context: LinearContext): () => void },
+  context: LinearContext,
+) {
   const root = document.createElement("div");
   document.body.replaceChildren(root);
   const dispose = entrypoint.mount(root, context);
