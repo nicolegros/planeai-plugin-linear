@@ -13,9 +13,7 @@ pub const CANCELLED: i64 = -32800;
 pub const INVALID_REQUEST: i64 = -32600;
 pub const METHOD_NOT_FOUND: i64 = -32601;
 pub const PLUGIN_ERROR: i64 = -32000;
-/// PlaneAI refused a host callback the plugin's capabilities do not cover.
-pub const NOT_GRANTED: i64 = -32003;
-/// PlaneAI refused a synced task create because a task the plugin does not own holds the key.
+/// PlaneAI refused a synced task write because a task the plugin does not own holds the key.
 pub const KEY_TAKEN: i64 = -32005;
 
 #[derive(Debug, Clone, PartialEq, Eq)]

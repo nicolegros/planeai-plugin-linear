@@ -85,7 +85,10 @@ impl FakeHost {
             }
             "host.task.update" => {
                 if !self.owned.contains(&key) {
-                    return Err((-32003, "not granted".to_string()));
+                    return Err(match self.tasks.contains_key(&key) {
+                        true => (-32005, format!("task {key} belongs to another owner")),
+                        false => (-32003, "not granted".to_string()),
+                    });
                 }
                 let task = self
                     .tasks

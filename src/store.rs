@@ -217,6 +217,14 @@ impl Store {
         Ok(())
     }
 
+    pub fn unlink_task(&self, issue_id: &IssueId) -> StoreResult<()> {
+        self.conn.execute(
+            "DELETE FROM linear_task_links WHERE issue_id = ?1",
+            params![issue_id.0],
+        )?;
+        Ok(())
+    }
+
     pub fn issue_for_task(&self, task_key: &str) -> StoreResult<Option<IssueId>> {
         Ok(self
             .conn

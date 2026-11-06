@@ -1,7 +1,7 @@
 use crate::host::{Host, TaskFields};
 use crate::linear_api::fetch_issues;
 use crate::model::{LinearIssue, TaskKey, TaskStatus};
-use crate::rpc::{KEY_TAKEN, NOT_GRANTED};
+use crate::rpc::KEY_TAKEN;
 use crate::session::Linear;
 use crate::settings::{Settings, Source, SourceName};
 use crate::store::Store;
@@ -143,26 +143,33 @@ async fn apply_issue(
         .task(&key)
         .await
         .map_err(|error| format!("failed to read local task {key}: {error}"))?;
-    let applied = match (existing, &link) {
-        (None, _) => match host.create_task(&key, &fields).await {
-            Ok(()) => Applied::Created,
-            Err(error) if error.code == KEY_TAKEN => return Ok(Applied::Skipped),
-            Err(error) => return Err(format!("failed to create task {key}: {error}")),
-        },
-        (Some(task), Some(_)) if task.fields() == fields => Applied::Unchanged,
-        (Some(_), Some(_)) => {
+    // PlaneAI updates only tasks this plugin owns, so an unlinked task updates only when an
+    // earlier sync or install created it.
+    let (verb, written) = match (existing, &link) {
+        (None, _) => (
+            "create",
+            host.create_task(&key, &fields)
+                .await
+                .map(|()| Applied::Created),
+        ),
+        (Some(task), Some(_)) if task.fields() == fields => ("update", Ok(Applied::Unchanged)),
+        (Some(_), _) => (
+            "update",
             host.update_task(&key, &fields)
                 .await
-                .map_err(|error| format!("failed to update task {key}: {error}"))?;
-            Applied::Updated
+                .map(|()| Applied::Updated),
+        ),
+    };
+    let applied = match written {
+        Ok(applied) => applied,
+        // A task this plugin does not own holds the key, so a link to it is stale.
+        Err(error) if error.code == KEY_TAKEN => {
+            store
+                .unlink_task(&issue.id)
+                .map_err(|error| error.to_string())?;
+            return Ok(Applied::Skipped);
         }
-        // PlaneAI updates only tasks this plugin owns, so an unlinked task updates only
-        // when an earlier sync or install created it.
-        (Some(_), None) => match host.update_task(&key, &fields).await {
-            Ok(()) => Applied::Updated,
-            Err(error) if error.code == NOT_GRANTED => return Ok(Applied::Skipped),
-            Err(error) => return Err(format!("failed to update task {key}: {error}")),
-        },
+        Err(error) => return Err(format!("failed to {verb} task {key}: {error}")),
     };
     store
         .upsert_issue(issue, status)
@@ -379,6 +386,38 @@ mod tests {
                     json!({ "created": 0, "updated": 1, "departed": 0, "errors": 0 })
                 );
                 assert_eq!(plugin.host.tasks["ENG-1"]["title"], "Title ENG-1");
+            })
+            .await;
+        }
+
+        #[tokio::test]
+        async fn a_linked_key_a_project_reused_is_skipped_and_never_departs() {
+            local(async {
+                let fixture = Fixture::new().await;
+                fixture.connect("org-1");
+                fixture.filter_returns(filter("ENG"), vec![todo("uuid-1", "ENG-1")]).await;
+                let mut plugin = fixture.start(one_source());
+                plugin.call("linear.syncNow", Value::Null).await.unwrap();
+                plugin.host.owned.remove("ENG-1");
+                plugin.host.tasks.insert(
+                    "ENG-1".into(),
+                    json!({ "key": "ENG-1", "title": "Project task", "description": "", "status": "todo", "priority": 0, "tags": [] }),
+                );
+
+                let clashed = plugin.call("linear.syncNow", Value::Null).await.unwrap();
+                fixture.reset_linear().await;
+                fixture.filter_returns(filter("ENG"), vec![]).await;
+                let left = plugin.call("linear.syncNow", Value::Null).await.unwrap();
+
+                assert_eq!(
+                    clashed,
+                    json!({ "created": 0, "updated": 0, "departed": 0, "errors": 0, "skipped": ["ENG-1"] })
+                );
+                assert_eq!(
+                    left,
+                    json!({ "created": 0, "updated": 0, "departed": 0, "errors": 0 })
+                );
+                assert_eq!(plugin.host.tasks["ENG-1"]["title"], "Project task");
             })
             .await;
         }
