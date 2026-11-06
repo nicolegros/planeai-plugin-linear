@@ -4,7 +4,7 @@ import { baseStyles } from "./styles.js";
 
 // Mirrors the native sidebar's section header and rows.
 const styles = `${baseStyles}
-  html,body { background:transparent; } /* hosts before PlaneAI's content-sized sections paint this frame */
+  html,body { background:transparent; } /* PlaneAI hosts older than content-sized sections paint the frame background */
   section { display:flex; flex-direction:column; gap:2px; padding:2px; }
   .section-header,.issue { width:100%; min-height:0; display:flex; align-items:center; gap:6px; border:0; border-radius:var(--planeai-radius); text-align:left; background:transparent; }
   .section-header { margin-bottom:2px; padding:4px 8px; font-size:11px; line-height:16px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--planeai-text-muted); }
