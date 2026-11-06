@@ -27,6 +27,7 @@ const styles = `${baseStyles}
   .prefix-offer { display:grid; gap:8px; }
   .prefix-offer .row { align-items:flex-end; }
   .prefix-offer .field { flex:0 0 160px; }
+  .key-prefixes { display:grid; gap:12px; padding:14px; border:1px solid var(--planeai-border); border-radius:8px; background:var(--planeai-surface-raised); }
   .field > label, .mapping > .label { color:var(--planeai-text-muted); font-size:12px; }
   .source { display:grid; gap:12px; padding:14px; border:1px solid var(--planeai-border); border-radius:8px; background:var(--planeai-surface-raised); }
   .source > .row { align-items:end; }
@@ -55,13 +56,13 @@ function field(label: string, control: HTMLElement): HTMLElement {
   return wrap;
 }
 
-function textInput(value: string, changed: (value: string) => void, options: { placeholder?: string; ariaLabel?: string; type?: string } = {}) {
+function textInput(value: string, changed?: (value: string) => void, options: { placeholder?: string; ariaLabel?: string; type?: string } = {}) {
   const input = document.createElement("input");
   input.type = options.type ?? "text";
   input.value = value;
   input.placeholder = options.placeholder ?? "";
   if (options.ariaLabel) input.setAttribute("aria-label", options.ariaLabel);
-  input.addEventListener("change", () => changed(input.value));
+  if (changed) input.addEventListener("change", () => changed(input.value));
   return input;
 }
 
@@ -223,8 +224,10 @@ const entrypoint: Entrypoint = {
       offer.className = "prefix-offer";
       const message = document.createElement("p");
       message.className = "warning";
-      message.textContent = `Not synced, because PlaneAI tasks already use their keys: ${identifiers.join(", ")}.`;
-      const input = textInput(suggestedPrefix(team, prefixes), () => {}, { ariaLabel: `PlaneAI key prefix for ${team} issues` });
+      const mapped = prefixes[team];
+      const keys = identifiers.map((identifier) => (mapped ? `${identifier} as ${mapped}${identifier.slice(team.length)}` : identifier));
+      message.textContent = `Not synced, because PlaneAI tasks already use their keys: ${keys.join(", ")}.`;
+      const input = textInput(suggestedPrefix(team, prefixes), undefined, { ariaLabel: `PlaneAI key prefix for ${team} issues` });
       input.addEventListener("input", () => {
         input.value = input.value.toUpperCase();
       });
@@ -504,10 +507,10 @@ const entrypoint: Entrypoint = {
         ...settings,
         sources: { ...sources, [nextName(sources, "source", "-")]: { query: { kind: "filter", filter: DEFAULT_FILTER }, status_map: {}, writeback: null } },
       }), "add"));
-      const prefixes = Object.entries(settings.key_prefixes ?? {});
+      const prefixes = Object.entries(settings.key_prefixes ?? {}).sort(([a], [b]) => a.localeCompare(b));
       if (prefixes.length) {
         const section = document.createElement("article");
-        section.className = "source";
+        section.className = "key-prefixes";
         const title = document.createElement("h3");
         title.textContent = "Key prefixes";
         const note = document.createElement("p");

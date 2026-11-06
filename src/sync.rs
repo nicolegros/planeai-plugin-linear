@@ -140,6 +140,15 @@ async fn apply_issue(
     let key = link
         .clone()
         .unwrap_or_else(|| settings.task_key(&issue.identifier));
+    // A key prefix can map an issue onto the key of another issue's task, which must not be shared.
+    if link.is_none()
+        && store
+            .issue_for_task(&key.0)
+            .map_err(|error| error.to_string())?
+            .is_some_and(|other| other != issue.id)
+    {
+        return Ok(Applied::Skipped);
+    }
     let existing = host
         .task(&key)
         .await
@@ -396,6 +405,27 @@ mod tests {
                 assert_eq!(plugin.host.tasks["ENG-1"]["title"], "Project task");
                 assert_eq!(plugin.host.tasks["ENG-2"]["title"], "Title ENG-2");
                 assert!(!plugin.host.tasks.contains_key("LENG-2"));
+            })
+            .await;
+        }
+
+        #[tokio::test]
+        async fn a_prefix_that_lands_on_another_synced_issues_key_is_skipped() {
+            local(async {
+                let fixture = Fixture::new().await;
+                fixture.connect("org-1");
+                fixture.filter_returns(filter("ENG"), vec![todo("uuid-1", "ENG-1")]).await;
+                fixture.filter_returns(filter("OPS"), vec![todo("uuid-9", "OPS-1")]).await;
+                let mut plugin = fixture.start(FakeHost::with_settings(json!({
+                    "sources": { "eng": filter_source("ENG"), "ops": filter_source("OPS") },
+                    "key_prefixes": { "OPS": "ENG" }
+                })));
+
+                assert_eq!(
+                    plugin.call("linear.syncNow", Value::Null).await.unwrap(),
+                    json!({ "created": 1, "updated": 0, "departed": 0, "errors": 0, "skipped": ["OPS-1"] })
+                );
+                assert_eq!(plugin.host.tasks["ENG-1"]["title"], "Title ENG-1");
             })
             .await;
         }

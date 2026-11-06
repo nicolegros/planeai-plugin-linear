@@ -242,6 +242,65 @@ test("Sync Now offers to sync a team whose keys a PlaneAI project uses under ano
   assert.ok([...root.querySelectorAll("span")].some((span) => span.textContent === "TRA-N syncs as LTRA-N"));
 });
 
+test("an offer whose prefix the sidecar rejects shows the error and does not sync", async () => {
+  let syncs = 0;
+  const { root } = mountPreferences({
+    answers: {
+      "linear.syncNow": () => {
+        syncs += 1;
+        return { created: 0, updated: 0, departed: 0, errors: 0, skipped: ["TRA-13"] };
+      },
+      "linear.settings.update": () => {
+        throw new Error('key prefix "TRA" to "L-TRA" must use 1 to 10 uppercase letters and digits, starting with a letter');
+      },
+    },
+  });
+  await settle();
+  buttonNamed(root, "Sync Now")!.click();
+  await settle();
+  root.querySelector<HTMLInputElement>("input[aria-label='PlaneAI key prefix for TRA issues']")!.value = "L-TRA";
+
+  buttonNamed(root, "Sync TRA issues under this prefix")!.click();
+  await settle();
+
+  assert.equal(syncs, 1);
+  assert.equal(
+    root.querySelector("[role='alert']")?.textContent,
+    'key prefix "TRA" to "L-TRA" must use 1 to 10 uppercase letters and digits, starting with a letter',
+  );
+});
+
+test("a mapped team whose prefix is taken too names the key it tried and offers another", async () => {
+  const { root } = mountPreferences({
+    settings: { sync_interval_ms: 60000, sources: { eng: engSource }, key_prefixes: { TRA: "LTRA" } },
+    answers: { "linear.syncNow": () => ({ created: 0, updated: 0, departed: 0, errors: 0, skipped: ["TRA-13"] }) },
+  });
+  await settle();
+  buttonNamed(root, "Sync Now")!.click();
+  await settle();
+
+  assert.equal(
+    root.querySelector(".prefix-offer .warning")?.textContent,
+    "Not synced, because PlaneAI tasks already use their keys: TRA-13 as LTRA-13.",
+  );
+  assert.equal(root.querySelector<HTMLInputElement>("input[aria-label='PlaneAI key prefix for TRA issues']")!.value, "TRAL");
+});
+
+test("removing a key prefix saves the map without it", async () => {
+  const { root, saved } = mountPreferences({
+    settings: { sync_interval_ms: 60000, sources: { eng: engSource }, key_prefixes: { TRA: "LTRA", OPS: "LOPS" } },
+  });
+  await settle();
+  const rows = [...root.querySelectorAll(".key-prefixes .row")];
+  assert.deepEqual(rows.map((row) => row.querySelector("span")?.textContent), ["OPS-N syncs as LOPS-N", "TRA-N syncs as LTRA-N"]);
+
+  rows[1].querySelector("button")!.click();
+  await settle();
+
+  assert.deepEqual(saved.at(-1).key_prefixes, { OPS: "LOPS" });
+  assert.deepEqual([...root.querySelectorAll(".key-prefixes .row span")].map((span) => span.textContent), ["OPS-N syncs as LOPS-N"]);
+});
+
 test("a rejected save shows the sidecar's validation error", async () => {
   const { root } = mountPreferences({
     answers: {

@@ -73,6 +73,12 @@ impl FakeHost {
             }
             "host.task.get" => Ok(json!({ "task": self.tasks.get(&key) })),
             "host.task.create" => {
+                // Like PlaneAI, a create under a key this plugin already owns resumes that task.
+                if self.owned.contains(&key) {
+                    let task = self.tasks.get_mut(&key).expect("an owned task exists");
+                    merge(task, &params);
+                    return Ok(task.clone());
+                }
                 if self.tasks.contains_key(&key) {
                     return Err((-32005, format!("task {key} already exists")));
                 }

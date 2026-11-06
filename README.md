@@ -97,6 +97,7 @@ This happens when a Linear team key matches a PlaneAI project prefix, for an iss
 Sync Now then offers a prefix for that team, such as `LTRA` for `TRA`, saves it in `key_prefixes`, and syncs again.
 The team's issues then sync as tasks such as `LTRA-13`, and the Linear sidebar still shows them as `TRA-13`.
 Tasks already synced keep their keys when a prefix is added or removed, and Preferences lists each prefix with a way to remove it.
+An issue whose mapped key another synced issue already holds, such as `OPS-1` mapped to `ENG-1` while team `ENG` syncs, is skipped the same way instead of sharing that task.
 One failing source never stops the others; the totals list each error.
 
 An issue that leaves every source's results is a departure.
