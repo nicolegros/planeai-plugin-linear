@@ -24,6 +24,9 @@ const styles = `${baseStyles}
   .card { display:grid; gap:12px; }
   .card > h2 { margin:0; color:var(--planeai-text-subtle); font-size:11px; font-weight:600; letter-spacing:.05em; text-transform:uppercase; }
   .field { display:grid; gap:4px; }
+  .prefix-offer { display:grid; gap:8px; }
+  .prefix-offer .row { align-items:flex-end; }
+  .prefix-offer .field { flex:0 0 160px; }
   .field > label, .mapping > .label { color:var(--planeai-text-muted); font-size:12px; }
   .source { display:grid; gap:12px; padding:14px; border:1px solid var(--planeai-border); border-radius:8px; background:var(--planeai-surface-raised); }
   .source > .row { align-items:end; }
@@ -233,7 +236,9 @@ const entrypoint: Entrypoint = {
       }, "primary");
       const row = document.createElement("div");
       row.className = "row";
-      row.append(field(`Key prefix for ${team}`, input), apply);
+      const prefixField = field(`Key prefix for ${team}`, input);
+      prefixField.classList.remove("grow");
+      row.append(prefixField, apply);
       offer.append(message, row);
       return offer;
     };
@@ -495,6 +500,10 @@ const entrypoint: Entrypoint = {
         article.append(head, queryEditor(name, source), statusMapEditor(name, source), writebackEditor(name, source));
         card.append(article);
       }
+      card.append(button("Add source", () => void save({
+        ...settings,
+        sources: { ...sources, [nextName(sources, "source", "-")]: { query: { kind: "filter", filter: DEFAULT_FILTER }, status_map: {}, writeback: null } },
+      }), "add"));
       const prefixes = Object.entries(settings.key_prefixes ?? {});
       if (prefixes.length) {
         const section = document.createElement("article");
@@ -520,10 +529,6 @@ const entrypoint: Entrypoint = {
         }
         card.append(section);
       }
-      card.append(button("Add source", () => void save({
-        ...settings,
-        sources: { ...sources, [nextName(sources, "source", "-")]: { query: { kind: "filter", filter: DEFAULT_FILTER }, status_map: {}, writeback: null } },
-      }), "add"));
       return card;
     };
 
