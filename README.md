@@ -104,6 +104,7 @@ An issue that leaves every source's results is a departure.
 After a sync in which every source succeeded, the plugin queues the departed issues whose task is not done yet, and PlaneAI shows them one at a time as a toast, "`ENG-123` left your Linear view".
 **Done** (or Enter) marks the task done, and the plugin dequeues the issue only after PlaneAI saved that.
 Dismissing the toast dequeues the issue and leaves the task alone.
+The issue prompts again only if it re-enters a source and later leaves it.
 A failed sync never rebuilds the queue, so an issue moving between two sources never prompts.
 
 ## Sidebar and assignment
