@@ -285,9 +285,7 @@ impl Store {
              ON CONFLICT(issue_id, source_name) DO UPDATE SET sync_status =
                  CASE WHEN linear_issue_sources.sync_status = 'synced' OR excluded.sync_status = 'synced'
                  THEN 'synced' ELSE 'departed' END,
-                 departure_prompt_eligible =
-                 CASE WHEN linear_issue_sources.sync_status = 'synced' OR excluded.sync_status = 'synced'
-                 THEN 0 ELSE MAX(linear_issue_sources.departure_prompt_eligible, excluded.departure_prompt_eligible) END",
+                 departure_prompt_eligible = MAX(linear_issue_sources.departure_prompt_eligible, excluded.departure_prompt_eligible)",
             params![to.0, from.0],
         )?;
         self.conn.execute(
