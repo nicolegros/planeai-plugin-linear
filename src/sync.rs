@@ -551,6 +551,52 @@ mod tests {
         }
 
         #[tokio::test]
+        async fn a_dismissed_departure_stays_dismissed_until_the_issue_departs_again() {
+            local(async {
+                let fixture = Fixture::new().await;
+                fixture.connect("org-1");
+                fixture
+                    .filter_returns(filter("ENG"), vec![todo("uuid-1", "ENG-1")])
+                    .await;
+                let mut plugin = fixture.start(one_source());
+                plugin.call("linear.syncNow", Value::Null).await.unwrap();
+                fixture.reset_linear().await;
+                fixture.filter_returns(filter("ENG"), vec![]).await;
+                plugin.call("linear.syncNow", Value::Null).await.unwrap();
+
+                plugin
+                    .call("linear.departures.dequeue", json!({ "issue_id": "uuid-1" }))
+                    .await
+                    .unwrap();
+                assert_eq!(
+                    plugin.call("linear.syncNow", Value::Null).await.unwrap()["departed"],
+                    0
+                );
+                assert_eq!(
+                    plugin
+                        .call("linear.departures.list", Value::Null)
+                        .await
+                        .unwrap(),
+                    json!({ "items": [] })
+                );
+
+                fixture.reset_linear().await;
+                fixture
+                    .filter_returns(filter("ENG"), vec![todo("uuid-1", "ENG-1")])
+                    .await;
+                plugin.call("linear.syncNow", Value::Null).await.unwrap();
+                fixture.reset_linear().await;
+                fixture.filter_returns(filter("ENG"), vec![]).await;
+                assert_eq!(
+                    plugin.call("linear.syncNow", Value::Null).await.unwrap()["departed"],
+                    1,
+                    "leaving the view again is a new departure"
+                );
+            })
+            .await;
+        }
+
+        #[tokio::test]
         async fn an_issue_moving_between_sources_never_departs() {
             local(async {
                 let fixture = Fixture::new().await;
