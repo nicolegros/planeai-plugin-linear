@@ -284,7 +284,8 @@ impl Store {
              SELECT issue_id, ?1, sync_status, departure_prompt_eligible FROM linear_issue_sources WHERE source_name = ?2
              ON CONFLICT(issue_id, source_name) DO UPDATE SET sync_status =
                  CASE WHEN linear_issue_sources.sync_status = 'synced' OR excluded.sync_status = 'synced'
-                 THEN 'synced' ELSE 'departed' END",
+                 THEN 'synced' ELSE 'departed' END,
+                 departure_prompt_eligible = MAX(linear_issue_sources.departure_prompt_eligible, excluded.departure_prompt_eligible)",
             params![to.0, from.0],
         )?;
         self.conn.execute(
@@ -386,10 +387,17 @@ impl Store {
     }
 
     pub fn dequeue_departure(&self, issue_id: &IssueId) -> StoreResult<()> {
-        self.conn.execute(
+        let transaction = self.conn.unchecked_transaction()?;
+        transaction.execute(
             "DELETE FROM linear_departure_queue WHERE issue_id = ?1",
             params![issue_id.0],
         )?;
+        // The next sync rebuilds the queue from eligibility, so only a fresh departure may prompt again.
+        transaction.execute(
+            "UPDATE linear_issue_sources SET departure_prompt_eligible = 0 WHERE issue_id = ?1",
+            params![issue_id.0],
+        )?;
+        transaction.commit()?;
         Ok(())
     }
 
@@ -635,6 +643,20 @@ pub mod tests {
             store.settings_snapshot().unwrap(),
             Some(settings(&[("new", "a")]))
         );
+    }
+
+    #[test]
+    fn source_rename_onto_a_removed_source_keeps_a_pending_departure_prompt() {
+        let store = Store::in_memory();
+        let id = synced(&store, "1", &["new"]);
+        store.apply_settings(&settings(&[("new", "a")])).unwrap();
+        store.apply_settings(&settings(&[("old", "b")])).unwrap();
+        store.sync_membership(&id, &source("old")).unwrap();
+        store.mark_departed(&id, &source("old")).unwrap();
+
+        store.apply_settings(&settings(&[("new", "b")])).unwrap();
+
+        assert_eq!(eligible(&store, "1", "new"), 1);
     }
 
     #[test]

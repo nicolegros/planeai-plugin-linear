@@ -613,9 +613,9 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn dismissing_a_departure_dequeues_it_without_touching_the_task() {
+    async fn a_dismissed_departure_stays_dismissed_until_the_issue_departs_again() {
         local(async {
-            let (_fixture, mut plugin) = departed_fixture().await;
+            let (fixture, mut plugin) = departed_fixture().await;
             assert_eq!(
                 plugin
                     .call("linear.departures.dequeue", json!({ "issue_id": "uuid-1" }))
@@ -625,11 +625,31 @@ mod tests {
             );
             assert_eq!(plugin.host.tasks["ENG-1"]["status"], "todo");
             assert_eq!(
+                plugin.call("linear.syncNow", Value::Null).await.unwrap()["departed"],
+                0
+            );
+            assert_eq!(
                 plugin
                     .call("linear.departures.list", Value::Null)
                     .await
                     .unwrap(),
                 json!({ "items": [] })
+            );
+
+            fixture.reset_linear().await;
+            fixture
+                .filter_returns(
+                    filter("ENG"),
+                    vec![raw_issue("uuid-1", "ENG-1", ("Todo", "unstarted"), 0.0)],
+                )
+                .await;
+            plugin.call("linear.syncNow", Value::Null).await.unwrap();
+            fixture.reset_linear().await;
+            fixture.filter_returns(filter("ENG"), vec![]).await;
+            assert_eq!(
+                plugin.call("linear.syncNow", Value::Null).await.unwrap()["departed"],
+                1,
+                "leaving the view again is a new departure"
             );
         })
         .await;
