@@ -385,13 +385,13 @@ impl Store {
             .optional()?)
     }
 
-    /// Settles the departure: only leaving a source again, after re-entering it, prompts anew.
     pub fn dequeue_departure(&self, issue_id: &IssueId) -> StoreResult<()> {
         let transaction = self.conn.unchecked_transaction()?;
         transaction.execute(
             "DELETE FROM linear_departure_queue WHERE issue_id = ?1",
             params![issue_id.0],
         )?;
+        // The next sync rebuilds the queue from eligibility, so only a fresh departure may prompt again.
         transaction.execute(
             "UPDATE linear_issue_sources SET departure_prompt_eligible = 0 WHERE issue_id = ?1",
             params![issue_id.0],
