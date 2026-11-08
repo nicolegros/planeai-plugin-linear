@@ -613,8 +613,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn dismissing_a_departure_leaves_the_task_and_silences_it_until_the_issue_departs_again()
-    {
+    async fn a_dismissed_departure_stays_dismissed_until_the_issue_departs_again() {
         local(async {
             let (fixture, mut plugin) = departed_fixture().await;
             assert_eq!(
